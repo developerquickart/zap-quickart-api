@@ -1,0 +1,288 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+   <head>
+      <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+      <title></title>
+      <style>
+         body{
+            background-color: #e3e3e3;
+         }
+      </style>
+   </head>
+   <body>
+      <table cellpadding="0" cellspacing="0" width="756" align="center" bgcolor="#ffffff" style="font-family:arial">
+         <tr>
+            <td align="left" valign="top" height="220" style="background-image:url(<%= baseurl %>/images/mail_logo/top_bg.png); background-size: contain; background-repeat:no-repeat; background-position:center top;">
+               <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                  <tr>
+                     <td align="left" width="50%" valign="top"><img src="<%= baseurl %>/images/mail_logo/logo.png" style="width: 210px;"></td>
+                     <td align="right" width="50%" valign="top" style="padding: 20px 20px 0 0;">
+                        <a href="https://www.facebook.com/QuicKart.uae/"><img src="https://quickart.ae/admin/images/mail_logo/facebook.png" width="30"></a>
+                        <a href="https://twitter.com/Quickartuae/"><img src="https://quickart.ae/admin/images/mail_logo/twitter.png" width="30"></a>
+                        <a href="https://www.instagram.com/accounts/login/?next=/quickartuae/"><img src="https://quickart.ae/admin/images/mail_logo/instagram.png" width="30"></a>
+                     </td>
+                  </tr>
+               </table>			
+            </td>
+         </tr>
+         <tr>
+            <td align="left" valign="top">
+               <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                  <tr>
+                     <td align="left" width="5%" valign="top"></td>
+                     <td align="left" width="75%" valign="top">
+                        <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                           <tr>
+                              <td align="left" width="3%" valign="top" style="font-family:arial; font-size: 22px; padding: 40px 0 10px 0; color: #7a7a7a;">Hello <span style="color:#3b006c">{{$to_name}}</span></td>
+                           </tr>
+                           <tr>
+                              <td align="left" width="3%" valign="top" style="font-family:arial; font-size: 18px;">Your Order has been confirmed with QuicKart successfully.</td>
+                           </tr>
+                        </table>
+                     </td>
+                     <td align="left" width="20%" valign="top"><img src="<%= baseurl %>/images/mail_logo/van_img.png" width="200"></td>
+                  </tr>
+               </table>			
+            </td>
+         </tr>
+         <tr>
+            <td align="left" valign="top" bgcolor="#f3f3f3" style="padding:20px 0 20px 0">
+               <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                  <tr>
+                     <td align="left" width="5%" valign="top"></td>
+                     <td align="left" width="85%" valign="top">
+                        <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                           <tr>
+                            <td align="left" valign="top" style="padding: 30px 0 30px 0;">
+                            <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                            <tr>
+                            <td align="left" width="2%" valign="top"></td>
+                            <td align="left" width="96%" valign="top">
+                            <table cellpadding="10" bgcolor="#ccc" cellspacing="1" width="100%" align="center" valign="top">
+                            <tr>
+                            <td colspan="9" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><center><b>Subscription Summary</b></center></td>
+                            </tr>
+                            <tr>
+                              <td colspan="2" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Name :</b></td> 
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$to_name}}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="2" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Address :</b></td> 
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$orderss_address}}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="2" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Order ID :</b></td> 
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$cart_id}}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="2" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Start Date : </b></td> 
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><?php echo date('d M Y', strtotime($start_dates)); ?></td>
+                            </tr>
+                            <tr>
+                              <td colspan="2" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>End Date : </b></td> 
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><?php echo date('d M Y', strtotime($end_dates)); ?></td>
+                            </tr>
+                            
+                            <tr>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Subscription ID</b></td>      
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Item Image</b></td>      
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Item Details</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Item Qty</b></td> 
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Delivery Days</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Delivery Slot</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Item Price</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Number Of Deliveries</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Total Amount</b></td>
+                            </tr>
+                            <?php $total_amts=0;
+                                  $total_amtsss=0;?> 
+                            @foreach($store_orderss as $storeorders)
+                            <tr>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$cart_id}} || {{$storeorders->store_order_id}}</td>    
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><img src="https://quickart.ae/admin{{$storeorders->varient_image}}" style="width:auto;height:100px;display:block;margin:auto;"></td>    
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$storeorders->product_name}} - {{$storeorders->quantity}} {{$storeorders->unit}}</td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"> {{$storeorders->qty}} </td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">
+                                <?php  
+                            $repeat_orderss=explode(",",trim($storeorders->repeat_orders));
+                            $repeat_ordersss=count($repeat_orderss);
+                            $daysss=array();
+                            for($j=0;$j<count($repeat_orderss);$j++){
+                            $days_name=trim($repeat_orderss[$j]);
+                            if($days_name == 'mon')
+                            {
+                            $dayss="Monday";
+                            }
+                            
+                            if($days_name == 'tue')
+                            {
+                            $dayss="Tuesday";
+                            }
+                            
+                            if($days_name == 'wed')
+                            {
+                            $dayss="Wednesday";
+                            }
+                            
+                            if($days_name == 'thu')
+                            {
+                            $dayss="Thursday";
+                            }
+                            
+                            if($days_name == 'fri')
+                            {
+                            $dayss="Friday";
+                            }
+                            
+                            if($days_name == 'sat')
+                            {
+                            $dayss="Saturday";
+                            }
+                            
+                            if($days_name == 'sun')
+                            {
+                            $dayss="Sunday";
+                            }
+                            $daysss[]=$dayss;
+                            }//for closed
+                            $dayssss=implode(', ', $daysss);
+                            echo $dayssss;
+                            ?>
+                            <?php
+                             $basic_prices=$storeorders->price/$storeorders->qty;
+                             $total_amt=$basic_prices*$storeorders->qty;
+                             $total_amts=$total_amts+$total_amt;
+                             $total_delivery=$repeat_ordersss*$total_deliverys;
+                             $items_prices=$total_delivery*$total_amt;
+                             $total_amtsss=$total_amtsss+(($total_amt*$repeat_ordersss)*$total_deliverys)
+                            ?>
+                            </td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$time_slot}}</td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($basic_prices,2)}}</td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{$total_delivery}}</td>
+                            <td align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($items_prices,2)}}</td>
+                            </tr>
+                            @endforeach
+                            
+                            <?php
+                            $tax=5;
+                            $GST_Amount =($total_amtsss- ($total_amtsss * (100/(100+$tax))));
+                            $basic_Price = $total_amtsss - $GST_Amount;
+                            $amount_paid = $basic_Price + $GST_Amount;
+                            
+                            $order_amt=round($basic_Price,2);
+                            $order_amt_vat_tax=round($GST_Amount,2);
+                            $order_amt_total=round($amount_paid,2);
+                            
+                            ?>
+                            <!--
+                             <tr>
+                              <td colspan="8" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Products Subtotal : </b></td> 
+                              <td colspan="1" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($order_amt_total,2)}}</td>
+                            </tr>->
+                            
+                            <!--<tr>
+                              <td colspan="8" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>VAT ( 5% ) : </b></td> 
+                              <td colspan="1" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($order_amt_vat_tax,2)}}</td>
+                            </tr>-->
+                            <tr>
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Total Products Amount  </b></td> 
+                              <td colspan="2" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($order_amt_total,2)}}</td>
+                            </tr>
+                            <tr>
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Delivery fees </b></td> 
+                              <td colspan="2" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">0.00</td>
+                            </tr>
+                            <tr>
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Subscription fees  </b></td> 
+                              <td colspan="2" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">0.00</td>
+                            </tr>
+                            <tr>
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Coupon Discount</b></td> 
+                              <td colspan="2" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top">{{number_format($coupon_discount,2)}}</td>
+                            </tr>
+                            
+                            <tr>
+                              <td colspan="7" align="left" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>Total Amount Paid   </b></td> 
+                              <td colspan="2" align="right" valign="middle" width="2%" bgcolor="#ffffff" valign="top"><b>{{$currency_sign}}</b> {{number_format(($order_amt_total-$coupon_discount),2)}}</td>
+                            </tr>
+                            
+                            
+                           <!-- 
+                            <tr>
+                            <td align="left" valign="middle" colspan="3" width="2%" bgcolor="#eee" valign="top"></td>
+                            <td align="left" valign="middle" colspan="2"  width="2%" bgcolor="#eee" valign="top"><b>Net Total (Payable):</b></td>
+                            <td align="left" valign="middle" width="2%" bgcolor="#eee" valign="top"><b>{{$currency_sign}} {{number_format($total_amts,2)}}</b></td>
+                            </tr> -->
+                        </table>
+                     </td>
+                     <td align="left" width="10%" valign="top"></td>
+                  </tr>
+               </table>			
+            </td>
+         </tr>
+         
+        <tr>
+        <td align="left" valign="top" style="padding: 0px 0 0 0;">
+        <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+        <tr>
+         <td align="left" width="2%" valign="top"></td>
+         <td align="left" width="95%" valign="top">
+            <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+               <tr>
+                  <td align="left" width="5%" valign="top" style="font-size: 15px;padding: 0 0 0 0;">All the subscriptions will be delivered to you as per your chosen schedule.<br><br>
+                   Thank you for choosing us.<br><br><br>
+                   Cheers.<br>
+                   Team QuicKart.<br></td>
+               </tr>
+               
+            </table>   
+         </td>
+         </tr>
+         </table>
+         </td>
+        </tr>
+         
+         
+         
+         <tr>
+            <td align="left" valign="top" style="padding: 30px 0 0 0;">
+               <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                  <tr>
+                     <td align="left" width="5%" valign="top"></td>
+                     <td align="left" width="85%" valign="top">
+                        <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                           <tr>
+                              <td align="center" width="5%" valign="top" style="font-size: 18px;padding: 0 0 20px 0;">We are here to make your daily grocery <br>
+                               shopping experience exceptional.</td>
+                           </tr>
+                           <tr>
+                              <td align="center" width="5%" valign="top" style="font-size: 15px;padding: 0 0 20px 0;"><a href="https://quickart.ae/"><img src="<%= baseurl %>/images/mail_logo/qrcode.png" width="300"></a></td>
+                           </tr>
+                           <tr>
+                              <td align="center" width="5%" valign="top" style="font-size: 15px;padding: 0 0 26px 0;">Know more about QuicKart
+                                 <br>Have an issue with your order? Contact us.<br>
+                                 info@quickart.ae</td>
+                           </tr>
+                        </table>
+                     </td>
+                     <td align="left" width="10%" valign="top"></td>
+                  </tr>
+               </table>			
+            </td>
+         </tr>
+         <tr>
+            <td align="left" valign="top" bgcolor="#3b006c" style="padding: 10px 0;">
+               <table cellpadding="0" cellspacing="0" width="100%" align="center" valign="top">
+                  <tr>
+                     <td align="left" width="5%" valign="top" style="padding: 0 0 0 10px;"><img src="<%= baseurl %>/images/mail_logo/logo.png" width="100"></td>
+                     <td align="right" width="10%" valign="top" style="font-size:12px;color: #fff;padding: 13px 20px 0 0;">Your favourite,<br>QuicKart Team</td>
+                  </tr>
+               </table>				
+            </td>
+         </tr>
+         
+      </table>
+   </body>
+</html>

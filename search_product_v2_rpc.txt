@@ -1,0 +1,83 @@
+DECLARE
+  v_query TEXT;
+  v_daily_ids INTEGER[] := ARRAY[122,2,3,16,23,149,21,55,56,57,58,59,72,94,150,9,20,132,37,48,50,99,101,102,147,180,47,49,91,100,146,148,179];
+  v_sub_ids INTEGER[] := ARRAY[122,2,3,16,23,149,37,48,50,99,101,102,147,180,47,49,91,100,146,148,179,9,20,132,21,55,56,57,58,59,72,94,150];
+BEGIN
+  v_query := TRIM(COALESCE(p_query, ''));
+
+  RETURN QUERY
+  SELECT 
+    t.product_id, t.varient_id, t.product_name, t.product_image, t.thumbnail,
+    t.description, t.price, t.mrp, t.unit, t.quantity, t.type,
+    t.availability, t.percentage, t.is_customized, t.fcat_id,
+    t.cat_id, t.brand_id, t.stock, t.country_icon, t.discountper, t.total_count
+  FROM (
+    SELECT 
+      p.product_id,
+      pv.varient_id,
+      p.product_name::TEXT,
+      p.product_image::TEXT,
+      p.thumbnail::TEXT,
+      pv.description::TEXT,
+      sp.price::NUMERIC,
+      sp.mrp::NUMERIC,
+      pv.unit::TEXT,
+      pv.quantity::TEXT,
+      p.type::TEXT,
+      p.availability::TEXT,
+      (COALESCE(NULLIF(p.percentage, ''), '0'))::NUMERIC as percentage,
+      p.is_customized,
+      p.fcat_id::TEXT,
+      p.cat_id,
+      p.brand_id,
+      sp.stock,
+      tc.country_icon::TEXT,
+      CASE WHEN sp.mrp > 0 THEN 100 - (sp.price * 100 / sp.mrp) ELSE 0 END::NUMERIC as discountper,
+      COUNT(*) OVER()::BIGINT as total_count,
+      -- PRE-CALCULATE SIMILARITY FOR SORTING/FILTERING
+      STRPOS(LOWER(p.product_name), LOWER(v_query)) as direct_match,
+      similarity(p.product_name, v_query) as name_sim,
+      similarity(COALESCE(cat.title, ''), v_query) as cat_sim,
+      similarity(COALESCE(b.title, ''), v_query) as brand_sim
+    FROM product p
+    JOIN product_varient pv ON p.product_id = pv.product_id
+    JOIN store_products sp ON pv.varient_id = sp.varient_id
+    LEFT JOIN tbl_country tc ON tc.id::text = p.country_id
+    LEFT JOIN categories cat ON cat.cat_id = p.cat_id
+    LEFT JOIN brands b ON b.cat_id = p.brand_id
+    WHERE sp.store_id = p_store_id
+      AND p.hide = 0 
+      AND p.is_delete = 0
+      
+      AND (p.is_offer_product = 0 OR p.offer_date IS NULL OR p.offer_date::date != CURRENT_DATE)
+      -- EXACT TYPO HANDLING LOGIC (Threshold 0.1)
+      AND (
+        v_query = '' 
+        OR (v_query = 'daily' AND p.availability IN ('quick', 'all') AND p.cat_id = ANY(v_daily_ids))
+        OR (v_query = 'subscription' AND p.availability IN ('subscription', 'all') AND p.cat_id = ANY(v_sub_ids))
+        OR (
+          v_query NOT IN ('daily', 'subscription') 
+          AND (
+            p.product_name ILIKE '%' || v_query || '%'
+            OR similarity(p.product_name, v_query) > 0.1
+            OR similarity(COALESCE(cat.title, ''), v_query) > 0.1
+            OR similarity(COALESCE(b.title, ''), v_query) > 0.1
+          )
+        )
+      )
+      AND (p_sub_cat_id IS NULL OR p.cat_id = p_sub_cat_id)
+      AND (CARDINALITY(p_categories) = 0 OR p.cat_id = ANY(p_categories))
+      AND sp.price BETWEEN p_min_price AND p_max_price
+  ) t
+  ORDER BY
+    CASE WHEN p_sort_by = 'price' AND p_sort_order = 'asc' THEN t.price END ASC,
+    CASE WHEN p_sort_by = 'price' AND p_sort_order = 'desc' THEN t.price END DESC,
+    CASE WHEN p_sort_by = 'name' AND p_sort_order = 'asc' THEN t.product_name END ASC,
+    CASE WHEN p_sort_by = 'name' AND p_sort_order = 'desc' THEN t.product_name END DESC,
+    -- RELEVANCE SORTING (Matches your original weightings)
+    CASE WHEN p_sort_by = 'relevance' AND v_query != '' AND v_query NOT IN ('daily', 'subscription') 
+         THEN (t.name_sim * 1.5 + t.cat_sim * 0.8 + t.brand_sim * 1.0 + CASE WHEN t.direct_match > 0 THEN 0.5 ELSE 0 END) 
+    END DESC
+  LIMIT p_limit
+  OFFSET p_offset;
+END;

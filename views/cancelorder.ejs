@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Email Template</title>
+    <style>
+      /* Reset some basic styles for consistency */
+      body,
+      table,
+      td,
+      a {
+        text-size-adjust: 100%;
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-size: 14px;
+        font-family: Arial, sans-serif;
+        background-color: #ffffff;
+        color: #000000;
+      }
+
+      table {
+        display: table;
+        border-collapse: separate;
+        box-sizing: border-box;
+        text-indent: initial;
+        unicode-bidi: isolate;
+        border-color: gray;
+      }
+      /* Ensure Outlook styles work */
+      .container {
+        width: 600px;
+        max-width: 600px;
+        margin: 0 auto;
+        background-color: #ffffff;
+      }
+
+      /* Style for mobile responsiveness */
+      @media screen and (max-width: 600px) {
+        .container {
+          width: 100%;
+        }
+        .content {
+          padding: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin: 0; padding: 0; background-color: #ffffff">
+    <table
+      width="100%"
+      cellpadding="0"
+      cellspacing="0"
+      border="0"
+      style="background-color: #ffffff; border-spacing: 1px;"
+    >
+      <tr>
+        <td align="left">
+          <table
+            class="container"
+            cellpadding="0"
+            cellspacing="0"
+            style="border: 1px solid #2c347f; margin: 15px auto;width: 600px;
+                max-width: 600px;
+                margin: 0 auto;
+                background-color: #ffffff; color: #000000"
+          >
+            <tr style="padding: 20px 0; background-color: #f7f7f7">
+              <td
+                align="left"
+                style="
+                  padding: 0px 20px 0;
+                  border-top: 20px solid #2c347f;
+                  border-bottom: 2px solid #2c347f;
+                "
+              >
+                <img
+                  src="<%= baseurl %>/images/mail_logo/logo.png"
+                  style="max-height: 80px"
+                  class="img-fluid"
+                />
+              </td>
+            </tr>
+            <tr>
+              <td class="content" style="padding: 10px 20px 0">
+                <p style="color: #333333; font-size: 14px; margin: 0 0 10px">
+                  Hello <%= user_name %>,
+                </p>
+                <p style="color: #333333; font-size: 14px; line-height: 1.5">
+                  Your delivery order is Cancelled.
+                </p>
+                <p style="color: #333333; font-size: 14px; line-height: 1.5">
+                  Order ID: <strong><%= cart_id %></strong>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <table
+                  cellpadding="0"
+                  cellspacing="0"
+                  width="100%"
+                  align="center"
+                  valign="top"
+                  class="table"
+                >
+                  <tbody>
+                    <tr>
+                      <td align="left" width="100%" valign="top">
+                        <table
+                          cellpadding="0"
+                          cellspacing="0"
+                          width="100%"
+                          align="center"
+                          valign="top"
+                        >
+                          <tbody>
+                            <tr>
+                              <td align="left" valign="top">
+                                <table
+                                  cellpadding="0"
+                                  cellspacing="0"
+                                  width="100%"
+                                  align="center"
+                                  valign="top"
+                                  style="margin: 0 0 20px 0"
+                                >
+                                  <tbody>
+                                    <tr>
+                                      <td
+                                        align="left"
+                                        width="2%"
+                                        valign="top"
+                                      ></td>
+                                      <td align="left" width="95%" valign="top">
+                                        <table
+                                          cellpadding="10"
+                                          bgcolor="#ccc"
+                                          cellspacing="1"
+                                          width="90%"
+                                          align="center"
+                                          valign="top"
+                                        >
+                                          <tbody>
+                                            <tr>
+                                            <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Product Order Id</b>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Product Image</b>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Product Name</b>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Qty</b>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Price</b>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <b>Total Amount</b>
+                                              </td>
+                                            </tr>
+                                            <% let total_amts = 0; %>
+                                            <% let total_amtsss = 0; %>
+                                            <% store_orderss.forEach(function(storeorders) { %>
+                                            <tr>
+                                                <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <%= storeorders.order_cart_id %>
+                                              </td>
+                                             
+                                            
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <img src="https://quickart.ae/admin<%= storeorders.varient_image %>"
+                                                  style="
+                                                    width: 80px;
+                                                    height: 80px;
+                                                    object-fit: contain;
+                                                    max-width: 80px;
+                                                    display: block;
+                                                    margin: auto;
+                                                  "
+                                                  class="CToWUd"
+                                                  data-bit="iit"
+                                                />
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                               <%= storeorders.product_name %> - <%= storeorders.quantity %> <%= storeorders.unit %>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <%= storeorders.qty %>
+                                              </td>
+
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <% 
+                                                let basic_prices = storeorders.price / storeorders.qty;
+                                                %>
+                                                <%= basic_prices.toFixed(2) %>
+                                              </td>
+                                              <td
+                                                align="left"
+                                                valign="middle"
+                                                width="2%"
+                                                bgcolor="#ffffff"
+                                              >
+                                                <% 
+                                                   let total_amt=storeorders.price;
+                                                   total_amts=total_amts+total_amt;
+                                                 %>
+                                                 <%= total_amt.toFixed(2); %>
+                                              </td>
+                                            </tr>
+                                            <% }); %>
+                                          </tbody>
+                                        </table>
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+
+                            <tr>
+                              <td
+                                align="left"
+                                valign="top"
+                                bgcolor="#2c347f"
+                                style="margin: 20px 0 0; padding: 10px 20px"
+                              >
+                                <table style="width: 100%">
+                                  <tbody>
+                                    <tr style="vertical-align: middle">
+                                      <td>
+                                        <a
+                                          href="https://www.facebook.com/QuicKart.uae"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/facebook.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://twitter.com/Quickartuae/"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/twitter.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://www.instagram.com/quickartuae/"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/instagram.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://www.linkedin.com/company/quickart-general-trading-llc/"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/linkeding.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://www.youtube.com/@quickartuae7767"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/youtube.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://play.google.com/store/apps/details?id=com.quickart.customer&pli=1"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/googleplay.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                        <a
+                                          href="https://apps.apple.com/in/app/quickart/id1624846848"
+                                          target="_blank"
+                                          ><img
+                                            src="<%= baseurl %>/images/mail_logo/appstore.png"
+                                            class="img-fluid"
+                                            style="max-height: 30px"
+                                        /></a>
+                                      </td>
+                                      <td></td>
+                                      <td>
+                                        <a href="#" class="qrcode">
+                                          <img
+                                            src="<%= baseurl %>/images/mail_logo/qrcode.png"
+                                            class="img-fluid"
+                                            style="max-height: 80px"
+                                          />
+                                        </a>
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

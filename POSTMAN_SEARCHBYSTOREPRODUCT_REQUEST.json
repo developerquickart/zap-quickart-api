@@ -1,0 +1,128 @@
+{
+  "info": {
+    "name": "SearchByStoreProduct API",
+    "description": "PostgreSQL migrated searchbystoreproduct API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Basic Search (Guest)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_id\": 1,\n  \"keyword\": \"milk\",\n  \"user_id\": \"null\",\n  \"device_id\": \"device123456789\",\n  \"sub_cat_id\": \"null\",\n  \"cat_id\": \"null\",\n  \"sortprice\": \"null\",\n  \"sortname\": \"null\",\n  \"page\": 1,\n  \"perpage\": 20,\n  \"min_price\": \"null\",\n  \"max_price\": \"null\",\n  \"min_discount\": \"null\",\n  \"max_discount\": \"null\",\n  \"stock\": \"null\",\n  \"byname\": \"null\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/nodejsapp/api/searchbystoreproduct/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["nodejsapp", "api", "searchbystoreproduct", ""]
+        }
+      }
+    },
+    {
+      "name": "Search with User (Authenticated)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_id\": 1,\n  \"keyword\": \"bread\",\n  \"user_id\": 123,\n  \"device_id\": \"device123456789\",\n  \"sub_cat_id\": \"null\",\n  \"cat_id\": \"null\",\n  \"sortprice\": \"ltoh\",\n  \"sortname\": \"null\",\n  \"page\": 1,\n  \"perpage\": 20,\n  \"min_price\": 10,\n  \"max_price\": 100,\n  \"min_discount\": \"null\",\n  \"max_discount\": \"null\",\n  \"stock\": \"all\",\n  \"byname\": \"null\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/nodejsapp/api/searchbystoreproduct/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["nodejsapp", "api", "searchbystoreproduct", ""]
+        }
+      }
+    },
+    {
+      "name": "Daily Products",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_id\": 1,\n  \"keyword\": \"daily\",\n  \"user_id\": 123,\n  \"device_id\": \"device123456789\",\n  \"sub_cat_id\": \"null\",\n  \"cat_id\": \"null\",\n  \"sortprice\": \"null\",\n  \"sortname\": \"null\",\n  \"page\": 1,\n  \"perpage\": 20,\n  \"min_price\": \"null\",\n  \"max_price\": \"null\",\n  \"min_discount\": \"null\",\n  \"max_discount\": \"null\",\n  \"stock\": \"null\",\n  \"byname\": \"null\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/nodejsapp/api/searchbystoreproduct/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["nodejsapp", "api", "searchbystoreproduct", ""]
+        }
+      }
+    },
+    {
+      "name": "Subscription Products",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_id\": 1,\n  \"keyword\": \"subscription\",\n  \"user_id\": 123,\n  \"device_id\": \"device123456789\",\n  \"sub_cat_id\": \"null\",\n  \"cat_id\": \"null\",\n  \"sortprice\": \"null\",\n  \"sortname\": \"null\",\n  \"page\": 1,\n  \"perpage\": 20,\n  \"min_price\": \"null\",\n  \"max_price\": \"null\",\n  \"min_discount\": \"null\",\n  \"max_discount\": \"null\",\n  \"stock\": \"null\",\n  \"byname\": \"null\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/nodejsapp/api/searchbystoreproduct/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["nodejsapp", "api", "searchbystoreproduct", ""]
+        }
+      }
+    },
+    {
+      "name": "Search with Filters",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"store_id\": 1,\n  \"keyword\": \"null\",\n  \"user_id\": 123,\n  \"device_id\": \"device123456789\",\n  \"sub_cat_id\": \"null\",\n  \"cat_id\": 5,\n  \"sortprice\": \"htol\",\n  \"sortname\": \"atoz\",\n  \"page\": 1,\n  \"perpage\": 20,\n  \"min_price\": 20,\n  \"max_price\": 500,\n  \"min_discount\": 5,\n  \"max_discount\": 50,\n  \"stock\": \"all\",\n  \"byname\": \"null\"\n}"
+        },
+        "url": {
+          "raw": "http://localhost:3001/nodejsapp/api/searchbystoreproduct/",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "3001",
+          "path": ["nodejsapp", "api", "searchbystoreproduct", ""]
+        }
+      }
+    }
+  ]
+}

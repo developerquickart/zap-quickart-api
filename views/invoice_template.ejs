@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3" crossorigin="anonymous">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://quickart.ae/admin/images/favicon.ico">
+
+    <title>Challan</title>
+
+<style>
+
+@font-face {
+  font-family: Metropolis-Regular;
+  src: url(fonts/Metropolis-Regular.otf);
+}
+@font-face {
+  font-family: Metropolis-Bold;
+  src: url(fonts/Metropolis-Bold.otf);
+}
+
+.width100{
+  float: left;
+  width: 100%;
+}
+
+body{
+  font-family: arial;
+  font-size: 15px;
+  line-height: normal;
+  font-weight: normal;
+}
+.mainbox{
+  max-width: 700px;
+  margin: 0 auto;
+}
+.mainbox_inner{
+  max-width: 96%;
+}
+.tabbing_four_inner_table tbody{
+  border: none !important;
+}
+.tabbing_four_inner_table tr{
+  border-bottom: 1px solid #f6f5f5;
+}
+.tabbing_four_inner_table td{
+  padding: 15px 20px;
+  border-right: 1px solid #979797;
+}
+.tabbing_four_inner_table th{
+  padding: 13px 15px;
+  border-right: 1px solid #979797;
+  background-color: #f6f5f5;
+  border-bottom: 1px solid #979797;
+}
+.tabbing_four_inner_table .table{
+  margin: 0;
+  float: left;
+  width: 100%;
+}
+
+.tabbing_four_inner_table .first_th{
+  background-color: transparent;
+}
+
+.foote_socialicon img{
+  max-height: 30px;
+}
+.qrcode{
+  position: absolute;
+  right: 0;
+  margin: -40px 10px 0 0;
+}
+.qrcode img{
+  max-height: 100px;
+}
+
+</style>
+
+</head>
+<body>
+    <div class="mainbox">
+        <div class="width100 mt-3" style="border: 1px solid #2c347f;">
+            <div class="container">
+              <div class="row">
+                <div style="border-top: 21px solid #2c347f; border-bottom: 2px solid #2c347f" class="col-lg-12 pt-2 pb-2 mb-3"><img src="https://quickart.ae/admin/images/logo.png" style="max-height: 70px;" class="img-fluid"></div>
+              </div>
+              <div class="row">
+                <div class="col-lg-12 mb-3">
+                  <div class="row">
+                    <div class="col-lg-12" style="padding-left: 30px;">
+                      Hello,<br>
+                      Your delivery for today is complete.
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-lg-12" style="padding: 20px 30px 20px 30px; background-color: #f7f7f7;margin: 0 0 20px 0;">
+                  <div class="row">
+                    <div class="col-lg-12 mb-3">Thank you for choosing us!</div>
+                  </div>
+                  <div class="row">
+                    <div class="col-lg-12">
+                      <div class="tabbing_four_inner_table table-responsive" style="background-color: #fff;border: 2px solid #2c347f;">
+                            <table class="table">
+                                <thead class="table-danger">
+                                    <tr>
+                                      <th scope="col">Cart ID </th>
+                                      <th scope="col">Item Image</th>
+                                      <th scope="col">Item Name </th>
+                                      <th scope="col">Qty </th>
+                                      <th scope="col">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <% store_orderss.forEach(function(item) { %>
+                                  <tr>                                    
+                                    <td scope="col"><%= item.order_cart_id %></td>
+                                    <td scope="col"><img src="https://quickart.ae/admin<%= item.varient_image %>" style="width:auto;height:100px;display:block;margin:auto;"></td>
+                                    <td scope="col"><%= item.product_name %></td>
+                                    <td scope="col"><%= item.qty %></td>
+                                    <td scope="col"><%= item.price %></td>
+                                  </tr>
+                                   <% }); %>
+                                  <tr style="background-color: #f2f3f5;">                                    
+                                    <td scope="col" colspan="4">Net Total:</td>
+                                    <td scope="col" ><%= final_amount %> AED</td>
+                                  </tr>
+                                  
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="row" style="padding-left: 20px;">
+                <div class="col-lg-12 mb-3">Cheers!</div>
+                <div class="col-lg-12 mb-3">We are here to make your fresh essentials<br>shopping experience exceptional</div>
+                <div class="col-lg-12 mb-3">Item(s) were delivered to you between <%= time_slot %></div>
+              </div>
+              <div class="row">
+                <div class="col-lg-12 mt-3 mb-2 pt-2 pb-2 text-center" style="background-color: #f7f7f7; position: relative;">
+                  <div class="foote_socialicon">
+                     <a href="https://www.facebook.com/QuicKart.uae/"><img src="https://quickart.ae/admin/images/mail_logo/facebook.png" class="img-fluid"></a>
+                     <a href="https://twitter.com/Quickartuae/"><img src="https://quickart.ae/admin/images/mail_logo/twitter.png" class="img-fluid"></a>
+                    <a href="https://www.instagram.com/accounts/login/?next=/quickartuae/"><img src="https://quickart.ae/admin/images/mail_logo/instagram.png" class="img-fluid"></a>
+                    <a href="#"><img src="https://quickart.ae/admin/images/linkeding.png" class="img-fluid"></a>
+                    <a href="#"><img src="https://quickart.ae/admin/images/youtube.png" class="img-fluid"></a>
+                    <a href="#"><img src="https://quickart.ae/admin/images/googleplay.png" class="img-fluid"></a>
+                    <a href="#"><img src="https://quickart.ae/admin/images/appstore.png" class="img-fluid"></a>
+                    <a href="#" class="qrcode"><img src="https://quickart.ae/admin/images/qrcode.png" class="img-fluid"></a>
+                  </div>
+                </div>
+              </div>
+              <div class="row">
+                <div class="col-lg-12" style="border-bottom: 11px solid #2c347f;margin: 30px 0 0 0;"></div>
+              </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
