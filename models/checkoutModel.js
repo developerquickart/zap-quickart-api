@@ -674,6 +674,7 @@ const getQuickordercheckout = async (appDetails) => {
                     browser: (browser) ? browser : '',
                     is_offer_product: is_offer_product,
                     order_status: 'Pending',
+                    is_zap_order: true,
                 }).returning('order_id');
 
             logToFile(`[getQuickordercheckout] SUCCESSFULLY INSERTED into orders table for groupId ${groupId}`);
@@ -719,6 +720,7 @@ const getQuickordercheckout = async (appDetails) => {
                     'subscription_id': subscription_id,
                     'platform': (platform) ? platform : '',
                     'browser': (browser) ? browser : '',
+                    is_zap_order: true,
                 });
 
             logToFile(`[getQuickordercheckout] SUCCESSFULLY INSERTED into subscription_order (id: ${subscription_id}) for groupId ${groupId}`);
@@ -1474,6 +1476,7 @@ const getQuickOrderCheckoutSdk = async (appDetails) => {
                     browser: (browser) ? browser : '',
                     is_offer_product: is_offer_product,
                     order_status: 'Pending',
+                    is_zap_order: true,
                 }).returning('order_id');
 
             logToFile(`[getQuickOrderCheckoutSdk] SUCCESSFULLY INSERTED into orders table for groupId ${groupId}`);
@@ -1519,6 +1522,7 @@ const getQuickOrderCheckoutSdk = async (appDetails) => {
                     'subscription_id': subscription_id,
                     'platform': (platform) ? platform : '',
                     'browser': (browser) ? browser : '',
+                    is_zap_order: true,
                 });
 
             logToFile(`[getQuickOrderCheckoutSdk] SUCCESSFULLY INSERTED into subscription_order (id: ${subscription_id}) for groupId ${groupId}`);
