@@ -609,7 +609,9 @@ const getQuickordercheckout = async (appDetails) => {
             const remPrice = (paymentMethodNew === 'Wallet') ? 0 : ((safePaymentMethod === 'cod') ? (totalPrice - paidByWallet - paidByRefWallet) : 0);
 
             const timeslotval = (productList.sub_time_slot) ? productList.sub_time_slot : timeSlot;
-            var deliverydateval = (productList.sub_delivery_date) ? productList.sub_delivery_date : deliveryDate;
+            // For quick orders we always persist today's date (Dubai timezone),
+            // regardless of what the client/request sent.
+            var deliverydateval = todayDubai;
 
             //fetch timeslot discount
             const timeslotdata = await knex('tbl_time_slots')
@@ -1412,7 +1414,9 @@ const getQuickOrderCheckoutSdk = async (appDetails) => {
             const remPrice = (paymentMethod.toLowerCase() === 'cod') ? (totalPrice - paidByWallet) : 0;
 
             const timeslotval = (productList.sub_time_slot) ? productList.sub_time_slot : timeSlot;
-            var deliverydateval = (productList.sub_delivery_date) ? productList.sub_delivery_date : deliveryDate;
+            // For quick orders we always persist today's date (Dubai timezone),
+            // regardless of what the client/request sent.
+            var deliverydateval = todayDubai;
 
             //fetch timeslot discount
             const timeslotdata = await knex('tbl_time_slots')
