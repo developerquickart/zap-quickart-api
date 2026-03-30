@@ -48,6 +48,7 @@ BEGIN
     WHERE sp.store_id = p_store_id
       AND p.hide = 0 
       AND p.is_delete = 0
+      AND p.is_zap IS TRUE
       
       AND (p.is_offer_product = 0 OR p.offer_date IS NULL OR p.offer_date::date != CURRENT_DATE)
       -- EXACT TYPO HANDLING LOGIC (Threshold 0.1)

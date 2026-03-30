@@ -2560,6 +2560,7 @@ const getfetcatProd = async (appDetatils) => {
     .where('store_products.store_id', store_id)
     .where('product.hide', 0)
     .where('product.is_delete', 0)
+    .where('product.is_zap', true)
     .where('store_products.stock', '>', 0)
     .where('product.approved', 1)
     .whereRaw("product.fcat_id LIKE ?", [`%${fcat_id}%`])

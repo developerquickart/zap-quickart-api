@@ -138,7 +138,32 @@ Deno.serve(async (req) => {
 
       if (dbError) throw new Error(`RPC Error: ${dbError.message}`);
 
-      const rawProducts = dbProducts || [];
+      const dbProductsRaw = dbProducts || [];
+      // Only include ZAP catalog products (matches Node search APIs). When `search_products_v2` also filters
+      // `is_zap` (see search_product_v2_rpc.txt), this is a no-op and total_count stays accurate.
+      let rawProducts = dbProductsRaw;
+      if (dbProductsRaw.length > 0) {
+        const idSet = new Set<number>();
+        for (const p of dbProductsRaw) {
+          const id = Number((p as any)?.res_product_id ?? (p as any)?.product_id);
+          if (Number.isFinite(id)) idSet.add(id);
+        }
+        const ids = Array.from(idSet);
+        if (ids.length > 0) {
+          const { data: zapRows, error: zapErr } = await supabase
+            .from('product')
+            .select('product_id')
+            .in('product_id', ids)
+            .eq('is_zap', true);
+          if (zapErr) throw new Error(`is_zap filter: ${zapErr.message}`);
+          const zapSet = new Set((zapRows ?? []).map((r: { product_id: number }) => Number(r.product_id)));
+          rawProducts = dbProductsRaw.filter((p: any) => {
+            const id = Number(p?.res_product_id ?? p?.product_id);
+            return Number.isFinite(id) && zapSet.has(id);
+          });
+        }
+      }
+
       if (rawProducts.length === 0) {
         const emptyRes = { status: "1", message: "Product not found", data: [] };
         return new Response(JSON.stringify(emptyRes), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
