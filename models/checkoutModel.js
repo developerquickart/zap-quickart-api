@@ -330,6 +330,11 @@ const getQuickordercheckout = async (appDetails) => {
             paymentMethodNew = 'Wallet';
         }
 
+        // Persist what the user selected (e.g. COD). paymentMethodNew stays 'Wallet' only for pricing/status logic.
+        const orderPaymentMethodStored =
+            safePaymentMethod === 'cod'
+                ? paymentMethod
+                : (paymentMethodNew === 'Wallet' ? 'Wallet' : paymentMethod);
 
         const totalrefwalletamt = totalRefWalletAmt;
         if (siStatus == 'yes' || safePaymentMethod == 'cod' || paymentMethodNew == 'Wallet') {
@@ -344,7 +349,7 @@ const getQuickordercheckout = async (appDetails) => {
             const bank_id = 0;
             const si_sub_ref_no = siSubRefNo;
             const store_id = storeId;
-            const payment_method = paymentMethodNew == "Wallet" ? "Wallet" : paymentMethod;
+            const payment_method = orderPaymentMethodStored;
             const payment_gateway = paymentGateway;
             const payment_id = paymentId;
             const coupon_id = couponId;
@@ -364,7 +369,7 @@ const getQuickordercheckout = async (appDetails) => {
             const mainJsonSaveRequest = {
                 merchant_key: "",
                 operation: 'purchase',
-                methods: (paymentMethodNew == 'Wallet') ? paymentMethodNew : paymentMethod,
+                methods: orderPaymentMethodStored,
                 success_url: "",
                 cancel_url: "",
                 hash: "",
@@ -662,7 +667,7 @@ const getQuickordercheckout = async (appDetails) => {
                     cod_charges: (codorderamt) ? parseFloat(codorderamt).toFixed(2) : 0,
                     paid_by_wallet: paidByWallet.toFixed(2),
                     paid_by_ref_wallet: paidByRefWallet.toFixed(2),
-                    payment_method: paymentMethodNew == "Wallet" ? "Wallet" : paymentMethod,
+                    payment_method: orderPaymentMethodStored,
                     si_sub_ref_no: siSubRefNo,
                     coupon_id: couponID,
                     coupon_code: couponcode,
