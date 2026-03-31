@@ -310,11 +310,18 @@ const getQuickordercheckout = async (appDetails) => {
             paymentMethodNew = 'Wallet';
         }
 
-        // Persist what the user selected (e.g. COD). paymentMethodNew stays 'Wallet' only for pricing/status logic.
+        // Decide what we actually store in orders.payment_method based on real split:
+        // - If user selected COD, always store COD.
+        // - Otherwise, if the entire order was covered by wallet/referral (no remaining amount),
+        //   store 'Wallet'; else store the gateway/payment method (e.g. card).
+        const walletPortion = parseFloat(paidByWallet || 0) + parseFloat(paidByRefWallet || 0);
+        const grossTotal = parseFloat(totalPrice || 0);
+        const nonWalletPortion = Math.max(0, grossTotal - walletPortion);
+
         const orderPaymentMethodStored =
             safePaymentMethod === 'cod'
                 ? paymentMethod
-                : (paymentMethodNew === 'Wallet' ? 'Wallet' : paymentMethod);
+                : (nonWalletPortion <= 0 ? 'Wallet' : paymentMethod);
 
         const totalrefwalletamt = totalRefWalletAmt;
         if (siStatus == 'yes' || safePaymentMethod == 'cod' || paymentMethodNew == 'Wallet') {
@@ -1842,8 +1849,13 @@ const getSubordercheckout = async (appDetails) => {
         const WalletDiscountAmount = ((storeTotalPriceSub * 50) / 100).toFixed(2);
         const WalletStatus = ((wallet || '').toLowerCase() === 'yes' && actualWallet >= WalletDiscountAmount) ? 'percentage' : 'fixed';
 
+        // For subscription/pay-per-delivery, determine method based on how much is really left after wallet/referral.
+        const subWalletPortion = parseFloat(totalWalletAmt || 0) + parseFloat(totalRefWalletAmt || 0);
+        const subGrossTotal = parseFloat(storeTotalPriceSub || 0);
+        const subNonWalletPortion = Math.max(0, subGrossTotal - subWalletPortion);
+
         let paymentMethodNew = '';
-        if (parseFloat(TotalpriceAmount) <= 0) {
+        if (subNonWalletPortion <= 0) {
             paymentMethodNew = 'Wallet';
         } else {
             paymentMethodNew = paymentMethod;
@@ -1862,7 +1874,7 @@ const getSubordercheckout = async (appDetails) => {
             const bank_id = 0;
             const si_sub_ref_no = siSubRefNo;
             const store_id = storeId;
-            const payment_method = (parseFloat(TotalpriceAmount) <= 0) ? 'Wallet' : paymentMethod;
+            const payment_method = (subNonWalletPortion <= 0) ? 'Wallet' : paymentMethod;
             const payment_gateway = paymentGateway;
             const payment_id = paymentId;
             const coupon_id = couponId;
