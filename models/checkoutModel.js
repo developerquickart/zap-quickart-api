@@ -310,15 +310,11 @@ const getQuickordercheckout = async (appDetails) => {
             paymentMethodNew = 'Wallet';
         }
 
-        // Decide what we actually store in orders.payment_method based on real split:
+        // Decide what we actually store in orders.payment_method based on the remaining card amount:
         // - If user selected COD, always store COD.
-        // - Otherwise, if the entire order was covered by wallet/referral (no remaining amount),
+        // - Otherwise, if there is no remaining amount to be paid by card (TotalpriceAmount <= 0),
         //   store 'Wallet'; else store the gateway/payment method (e.g. card).
-        // Use the intended wallet/referral amounts (totalWalletAmt / totalRefWalletAmt) here so this
-        // logic does not depend on per-product variables declared later.
-        const walletPortion = parseFloat(totalWalletAmt || 0) + parseFloat(totalRefWalletAmt || 0);
-        const grossTotal = parseFloat(totalPrice || 0);
-        const nonWalletPortion = Math.max(0, grossTotal - walletPortion);
+        const nonWalletPortion = Math.max(0, parseFloat(TotalpriceAmount || 0));
 
         const orderPaymentMethodStored =
             safePaymentMethod === 'cod'
