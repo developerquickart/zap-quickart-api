@@ -299,7 +299,10 @@ const successfirst = async (req, res) => {
 
         console.log(`[SuccessFirst] Checkout result for ${orderId}: ${checkout}`);
         if (checkout === 'success') {
-            res.redirect("https://quickart2.democheck.in/nodejsapp/api/success");
+            const baseUrl = process.env.NODE_APP_URL || '';
+            // Ensure we don't end up with double slashes if NODE_APP_URL already ends with '/'
+            const trimmedBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+            res.redirect(`${trimmedBase}/success`);
         } else {
             res.status(500).json({ status: 0, message: "Checkout failed after payment.", detail: checkout });
         }

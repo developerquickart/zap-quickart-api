@@ -1,4 +1,5 @@
 const checkoutModel = require('../models/checkoutModel');
+const { generateCartHashKey, deleteCache } = require('../utils/redisClient');
 
 const checkout_subcribtionorder = async (req, res) => {
 
@@ -31,6 +32,17 @@ const checkout_quickorder = async (req, res) => {
     try {
       const appDetatils = req.body; 
       const getOrderlist = await checkoutModel.getQuickordercheckout(appDetatils);
+
+      // On successful quick order, clear the corresponding cart hash in Redis
+      try {
+        const { user_id, store_id } = appDetatils || {};
+        if (user_id && store_id) {
+          const cartHashKey = generateCartHashKey(user_id, store_id);
+          await deleteCache(cartHashKey);
+        }
+      } catch (redisError) {
+        console.error('Error clearing cart hash after quickorder checkout:', redisError.message || redisError);
+      }
 
         var data = {
         "status":"1",
