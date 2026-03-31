@@ -537,11 +537,11 @@ const preparePaymentData = async (appDetails) => {
   const custom_data = { ordertype, payment_status, group_id, user_id, address_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, delivery_date, time_slot, del_partner_tip, del_partner_instruction, order_instruction, device_id, totalwalletamt, totalrefwalletamt, is_subscription, payment_type, platform, browser, storeItemList }
 
   if (appDetails.platform == "web") {
-    var success_url = `https://supaapioriginal-production.up.railway.app/quickart_web/${appDetails.successroutename}?screen=daily`;
-    var cancel_url = `https://supaapioriginal-production.up.railway.app/quickart_web/${appDetails.cancelroutename}`;
+    var success_url = `https://quickartweb-production.up.railway.app/${appDetails.successroutename}?screen=daily`;
+    var cancel_url = `https://quickartweb-production.up.railway.app/${appDetails.cancelroutename}`;
   } else {
-    var success_url = `https://supaapioriginal-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`
-    var cancel_url = 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/failure'
+    var success_url = `https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`
+    var cancel_url = 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/failure'
   }
 
   let mainJson = {};
