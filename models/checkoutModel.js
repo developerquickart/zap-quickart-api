@@ -314,7 +314,9 @@ const getQuickordercheckout = async (appDetails) => {
         // - If user selected COD, always store COD.
         // - Otherwise, if the entire order was covered by wallet/referral (no remaining amount),
         //   store 'Wallet'; else store the gateway/payment method (e.g. card).
-        const walletPortion = parseFloat(paidByWallet || 0) + parseFloat(paidByRefWallet || 0);
+        // Use the intended wallet/referral amounts (totalWalletAmt / totalRefWalletAmt) here so this
+        // logic does not depend on per-product variables declared later.
+        const walletPortion = parseFloat(totalWalletAmt || 0) + parseFloat(totalRefWalletAmt || 0);
         const grossTotal = parseFloat(totalPrice || 0);
         const nonWalletPortion = Math.max(0, grossTotal - walletPortion);
 
