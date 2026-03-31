@@ -37,23 +37,7 @@ const trailPaymentData = async (appDetails) => {
   const platform = appDetails.platform;
   const browser = appDetails.browser;
 
-  const dubaiTime = moment.tz("Asia/Dubai");
-  const todayDubai = dubaiTime.format("YYYY-MM-DD");
-  const isAfter6PM = dubaiTime.hour() > 17;
-  const isAfter12PM = dubaiTime.hour() > 11;
-
-  if (delivery_date === todayDubai && isAfter12PM) {
-    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-  }
-  if (isAfter6PM) {
-    const tomorrowDubai = moment.tz("Asia/Dubai").add(1, 'day').format("YYYY-MM-DD");
-    if (delivery_date == tomorrowDubai && time_slot == "06:00 am - 10:00 am") {
-      throw new Error(`Unable to place order for selected date time. Please select different date and time.`);
-    }
-  }
-  if (delivery_date === todayDubai && (time_slot == "06:00 am - 10:00 am" || time_slot == "02:00 pm - 05:00 pm" || time_slot == "02:00 pm - 04:00 pm")) {
-    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-  }
+  // Date/time slot cut-off blocks removed as requested.
 
   // Parallel: storeItemList + trailDetails (PostgreSQL type-safe joins)
   const [storeItemList, trailDetails] = await Promise.all([
@@ -413,26 +397,7 @@ const preparePaymentData = async (appDetails) => {
       throw new Error("This timeslot is not available for selected products delivery, kindly select different delivery date.");
     }
 
-    // Condition 1: Check if any order has a sub_delivery_date of today
-    if (storeItem.sub_delivery_date === todayDubai && isAfter12PM) {
-      logToFile("Check if any order has a sub_delivery_date of today");
-      throw new Error("Unable to place order for selected date time. Please select different date and time.");
-    }
-
-    // Condition 2: If it's after 6 PM in Dubai, prevent placing orders for tomorrow with "06:00 am - 10:00 am" time slot
-    if (isAfter6PM) {
-      const tomorrowDubai = dubaiTime.add(1, 'day').format("YYYY-MM-DD"); // Get tomorrow's date in Dubai time
-      if (storeItem.sub_delivery_date == tomorrowDubai && storeItem.sub_time_slot == "06:00 am - 10:00 am") {
-        logToFile("If it's after 6 PM in Dubai, prevent placing orders for tomorrow with 06:00 am - 10:00 am time slot");
-        throw new Error(`Unable to place order for selected date time. Please select different date and time.`);
-      }
-    }
-
-    // Condition 3: Check if any order has a sub_delivery_date of today
-    if (storeItem.sub_delivery_date === todayDubai && (storeItem.sub_time_slot == "06:00 am - 10:00 am" || storeItem.sub_time_slot == "02:00 pm - 05:00 pm" || storeItem.sub_time_slot == "02:00 pm - 04:00 pm")) {
-      logToFile("Unable to place order for selected date time. Please select different date and time.");
-      throw new Error("Unable to place order for selected date time. Please select different date and time.");
-    }
+    // Date/time slot cut-off blocks removed as requested.
 
   }
 

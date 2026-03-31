@@ -161,27 +161,7 @@ const getQuickordercheckout = async (appDetails) => {
                     throw new Error("This timeslot is not available for selected products delivery, kindly select different delivery date");
                 }
 
-                // Condition 1: Check if any order has a sub_delivery_date of today
-                if (storeItem.sub_delivery_date === todayDubai && isAfter12PM) {
-                    logToFile("Order blocked: after 12PM for today");
-                    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-                }
-
-
-                // Condition 2: If it's after 6 PM in Dubai, prevent placing orders for tomorrow with "06:00 am - 10:00 am" time slot
-                if (isAfter6PM) {
-                    const tomorrowDubai = dubaiTime.add(1, 'day').format("YYYY-MM-DD"); // Get tomorrow's date in Dubai time
-                    if (storeItem.sub_delivery_date == tomorrowDubai && storeItem.sub_time_slot == "06:00 am - 10:00 am") {
-                        logToFile("Order blocked:  If it's after 6 PM in Dubai, prevent placing orders for tomorrow with 06:00 am - 10:00 am time slot");
-                        throw new Error(`Unable to place order for selected date time. Please select different date and time.`);
-                    }
-                }
-
-                // Condition 3: Check if any order has a sub_delivery_date of today
-                if (storeItem.sub_delivery_date === todayDubai && (storeItem.sub_time_slot == "06:00 am - 10:00 am" || storeItem.sub_time_slot == "02:00 pm - 05:00 pm" || storeItem.sub_time_slot == "02:00 pm - 04:00 pm")) {
-                    logToFile("Order blocked:  Check if any order has a sub_delivery_date of today");
-                    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-                }
+                // Date/time slot cut-off blocks removed as requested.
             }
         }
 
@@ -1073,27 +1053,7 @@ const getQuickOrderCheckoutSdk = async (appDetails) => {
                     throw new Error("This timeslot is not available for selected products delivery, kindly select different delivery date");
                 }
 
-                // Condition 1: Check if any order has a sub_delivery_date of today
-                if (storeItem.sub_delivery_date === todayDubai && isAfter12PM) {
-                    logToFile("Order blocked: after 12PM for today");
-                    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-                }
-
-
-                // Condition 2: If it's after 6 PM in Dubai, prevent placing orders for tomorrow with "06:00 am - 10:00 am" time slot
-                if (isAfter6PM) {
-                    const tomorrowDubai = dubaiTime.add(1, 'day').format("YYYY-MM-DD"); // Get tomorrow's date in Dubai time
-                    if (storeItem.sub_delivery_date == tomorrowDubai && storeItem.sub_time_slot == "06:00 am - 10:00 am") {
-                        logToFile("Order blocked:  If it's after 6 PM in Dubai, prevent placing orders for tomorrow with 06:00 am - 10:00 am time slot");
-                        throw new Error(`Unable to place order for selected date time. Please select different date and time.`);
-                    }
-                }
-
-                // Condition 3: Check if any order has a sub_delivery_date of today
-                if (storeItem.sub_delivery_date === todayDubai && (storeItem.sub_time_slot == "06:00 am - 10:00 am" || storeItem.sub_time_slot == "02:00 pm - 05:00 pm" || storeItem.sub_time_slot == "02:00 pm - 04:00 pm")) {
-                    logToFile("Order blocked:  Check if any order has a sub_delivery_date of today");
-                    throw new Error("Unable to place order for selected date time. Please select different date and time.");
-                }
+                // Date/time slot cut-off blocks removed as requested.
             }
         }
 
