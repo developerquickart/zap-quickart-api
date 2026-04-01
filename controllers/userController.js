@@ -290,6 +290,14 @@ const login = async (req, res) => {
     // findUser now returns complete user data (optimized - combines findUser + getUsersforLogin)
     const getuser = await userModel.findUser(userdata);
 
+    // Allow login only for Zap users
+    if (!getuser || !getuser.is_zap_user) {
+      return res.status(200).json({
+        status: 0,
+        message: 'Sorry you are not a zap customer'
+      });
+    }
+
     // Prepare response immediately
     let userlist;
     if (getuser.is_verified == 0) {
