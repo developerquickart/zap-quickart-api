@@ -1260,8 +1260,27 @@ const findUser = async (userdata) => {
     // Get updated user with all required fields (combining getUsersforLogin functionality)
     const updatedUser = await knex('users').where('user_phone', userdata.user_phone)
       .where('country_code', userdata.country_code)
-      .select('id', 'name', 'email', 'user_phone', 'dial_code', 'otp_value', 'status', 'wallet', 'rewards', 'is_verified', 'app_update', 'referral_code', 'noti_popup'
-        , 'country_code', 'activate_deactivate_status', 'referral_amount', 'referral_return_amount', knex.raw('COALESCE(?, \'\') || COALESCE(user_image, \'\') as user_image', [imageurl]))
+      .select(
+        'id',
+        'name',
+        'email',
+        'user_phone',
+        'dial_code',
+        'otp_value',
+        'status',
+        'wallet',
+        'rewards',
+        'is_verified',
+        'app_update',
+        'referral_code',
+        'noti_popup',
+        'country_code',
+        'activate_deactivate_status',
+        'referral_amount',
+        'referral_return_amount',
+        'is_zap_user',
+        knex.raw('COALESCE(?, \'\') || COALESCE(user_image, \'\') as user_image', [imageurl])
+      )
       .first();
 
     // Send WhatsApp OTP asynchronously (fire and forget) - don't block response
