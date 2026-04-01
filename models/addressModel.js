@@ -49,6 +49,7 @@ const showAddress = async (appDetatils) => {
             )
             .where('user_id', user_id)
             .where('select_status', '!=', 2)
+            .where('is_zap_address', true)
     ]);
 
     const cityNameList = (cityNamesResult[0]?.cityName || '').split(',').filter(Boolean);
@@ -153,6 +154,7 @@ const editAddress = async (imageData) => {
         country_code: receiver_phone_code,
         latlng,
         dial_code: imageData.dial_code,
+        is_zap_address: true
     };
     if (filename) {
         updateData.doorimage = filename;
@@ -216,7 +218,8 @@ const addAddress = async (imageData) => {
                 user_id,
                 ...baseData,
                 added_at,
-                doorimage: filename
+                doorimage: filename,
+                is_zap_address: true
             })
             .returning('address_id');
         return { address_id: result[0]?.address_id ?? nextAddressId, inserted: true };
@@ -242,7 +245,8 @@ const addAddress = async (imageData) => {
             user_id,
             ...baseData,
             added_at,
-            doorimage: filename
+            doorimage: filename,
+            is_zap_address: true
         })
         .returning('address_id');
     return { address_id: result[0]?.address_id ?? nextAddressId, inserted: true };
