@@ -598,7 +598,8 @@ const getQuickordercheckout = async (appDetails) => {
             }
 
             const paymentStatus = (paymentMethodNew === 'Wallet') ? 'success' : ((safePaymentMethod === 'cod') ? 'Pending' : 'success');
-            const remPrice = (paymentMethodNew === 'Wallet') ? 0 : ((safePaymentMethod === 'cod') ? (totalPrice - paidByWallet - paidByRefWallet) : 0);
+            //const remPrice = (paymentMethodNew === 'Wallet') ? 0 : ((safePaymentMethod === 'cod') ? (totalPrice - paidByWallet - paidByRefWallet) : 0);
+            const remPrice = totalPrice;
 
             const timeslotval = (productList.sub_time_slot) ? productList.sub_time_slot : timeSlot;
             // For quick orders we always persist today's date (Dubai timezone),
