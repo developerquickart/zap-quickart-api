@@ -18,8 +18,6 @@ const getQuickordercheckout = async (appDetails) => {
         logToFile("getQuickordercheckout STARTED for groupId: " + appDetails.group_id);
         console.log("[getQuickordercheckout] STARTED for appDetails:", JSON.stringify(appDetails).substring(0, 500) + "...");
 
-        const current = new Date();
-
         // Destructure other details from appDetails
         const {
             user_id: userId,
@@ -76,6 +74,7 @@ const getQuickordercheckout = async (appDetails) => {
         // Get today's date and current time in Dubai timezone
         const dubaiTime = moment.tz("Asia/Dubai");
         const todayDubai = dubaiTime.format("YYYY-MM-DD");
+        const orderDateTimeDubai = dubaiTime.toDate();
         const isAfter6PM = dubaiTime.hour() >= 17;
         // const isAfter12PM = dubaiTime.hour() >= 14;
         const isAfter12PM = dubaiTime.isSameOrAfter(
@@ -379,7 +378,7 @@ const getQuickordercheckout = async (appDetails) => {
                 json_data: mainJsonSaveRequest,
                 group_id: group_id,
                 order_type: ordertype,
-                added_on: new Date()
+                added_on: orderDateTimeDubai
             });
 
             logToFile("COD Order Detail: " + JSON.stringify(mainJsonSaveRequest));
@@ -526,7 +525,6 @@ const getQuickordercheckout = async (appDetails) => {
                 throw new Error('Product not found');
             }
 
-            const currentDate1 = new Date().toISOString().split('T')[0];
             let offer_product = await knex('product')
                 .leftJoin('tbl_country', knex.raw('CAST(product.country_id AS INTEGER)'), '=', 'tbl_country.id')
                 .innerJoin('product_varient', 'product.product_id', 'product_varient.product_id')
@@ -537,7 +535,7 @@ const getQuickordercheckout = async (appDetails) => {
                     'tbl_country.country_icon',
                     'store_products.stock')
                 .where('product_varient.varient_id', varientId)
-                .where('product.offer_date', currentDate1)
+                .where('product.offer_date', todayDubai)
                 .first();
 
             const { price, total_mrp, mrp, tx_per: taxPer, tx_price: taxPrice, min_ord_qty: minOrderQty, max_ord_qty: maxOrderQty, stock, product_name: productName, quantity, unit, varient_image: varientImage } = product;
@@ -647,7 +645,7 @@ const getQuickordercheckout = async (appDetails) => {
                     user_id: userId,
                     store_id: storeId,
                     rem_price: (remPrice) ? parseFloat(remPrice).toFixed(2) : 0,
-                    order_date: current,
+                    order_date: orderDateTimeDubai,
                     delivery_date: deliverydateval,
                     time_slot: timeslotval,
                     address_id: addressId,
@@ -713,7 +711,7 @@ const getQuickordercheckout = async (appDetails) => {
                     'delivery_date': deliverydateval,
                     'time_slot': timeslotval,
                     'time_slot_discount': (timeslotdata) ? timeslotdata.discount : 0,
-                    'created_date': current,
+                    'created_date': orderDateTimeDubai,
                     'order_status': 'Pending',
                     'si_payment_flag': (paymentMethod.toLowerCase() === 'cod') ? "no" : "yes",
                     'group_id': groupId,
@@ -798,9 +796,8 @@ const getQuickordercheckout = async (appDetails) => {
 
         //check offer for lucky draw
         const lastofferdate = process.env.LAST_OFFER_DATE;
-        const currentDate = new Date().toISOString().split('T')[0];
         // && paymentStatus == 'success' && paymentStatus == 'success'
-        if (currentDate <= lastofferdate && finalAmount >= 100) {
+        if (todayDubai <= lastofferdate && finalAmount >= 100) {
             const maxLuckydrawResult = await knex('tbl_luckydraw').max('id as maxId').first();
             const nextLuckydrawId = (maxLuckydrawResult?.maxId ? parseInt(maxLuckydrawResult.maxId, 10) : 0) + 1;
             await knex('tbl_luckydraw').insert({
@@ -882,12 +879,7 @@ const getQuickordercheckout = async (appDetails) => {
         const currency = await knex('currency').first();
         const currencySign = currency ? currency.currency_sign : null;
 
-        // Get the year, month, and day in the required format
-        const year = current.getFullYear();
-        const month = String(current.getMonth() + 1).padStart(2, '0'); // Months are zero-based, so add 1
-        const day = String(current.getDate()).padStart(2, '0');
-        // Combine into the desired format
-        const formattedDate = `${year}-${month}-${day}`;
+        const formattedDate = todayDubai;
 
         const templateData = {
             baseurl: process.env.BASE_URL,
@@ -981,6 +973,7 @@ const getQuickOrderCheckoutSdk = async (appDetails) => {
         // Get today's date and current time in Dubai timezone
         const dubaiTime = moment.tz("Asia/Dubai");
         const todayDubai = dubaiTime.format("YYYY-MM-DD");
+        const orderDateTimeDubai = dubaiTime.toDate();
         const isAfter6PM = dubaiTime.hour() >= 17;
         // const isAfter12PM = dubaiTime.hour() >= 14;
         const isAfter12PM = dubaiTime.isSameOrAfter(
