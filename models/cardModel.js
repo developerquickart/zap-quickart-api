@@ -72,8 +72,8 @@ const SaveCardDetails = async (appDetails) => {
   const custom_data = { ordertype, user_id }
 
   if (appDetails.platform == "web") {
-    success_url = `https://quickart2.democheck.in/quickart_web/${appDetails.successroutename}?addedFrom=${appDetails.addedFrom}&tab=${appDetails.tab}`;
-    cancel_url = `https://quickart2.democheck.in/quickart_web/${appDetails.cancelroutename}?addedFrom=${appDetails.addedFrom}&tab=${appDetails.tab}`;
+    success_url = `https://quickartweb-production.up.railway.app/${appDetails.successroutename}?addedFrom=${appDetails.addedFrom}&tab=${appDetails.tab}`;
+    cancel_url = `https://quickartweb-production.up.railway.app/${appDetails.cancelroutename}?addedFrom=${appDetails.addedFrom}&tab=${appDetails.tab}`;
   } else {
 
     success_url = 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/savesuccess'
