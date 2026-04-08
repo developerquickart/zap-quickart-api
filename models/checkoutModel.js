@@ -905,6 +905,15 @@ const getQuickordercheckout = async (appDetails) => {
         //  sendMail = await codorderplacedMail(userEmail,templateData,subject,groupId);
         logToFile("ai sensy response: " + JSON.stringify(templateData));
 
+        try {
+            await knex('performance_checkpoints').insert({
+                group_id: groupId,
+                checkout_ts: knex.raw("now() AT TIME ZONE 'Asia/Dubai'")
+            });
+        } catch (pcErr) {
+            logToFile(`[getQuickordercheckout] performance_checkpoints insert failed for groupId ${groupId}: ${pcErr.message}`);
+        }
+
         return "success";
     } catch (error) {
         logToFile(`[getQuickordercheckout] CRITICAL ERROR for groupId ${appDetails.group_id}: ${error.stack}`);
