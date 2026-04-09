@@ -203,10 +203,10 @@ const trailPaymentData = async (appDetails) => {
   const group_id = number;
   const ordertype = 'trail';
   const success_url = (appDetails.platform == "web")
-    ? `https://quickart2.democheck.in/quickart_web/success?screen=daily`
+    ? `https://quickartweb-production.up.railway.app/success?screen=daily`
     : `https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
   const cancel_url = (appDetails.platform == "web")
-    ? `https://quickart2.democheck.in/quickart_web/failure`
+    ? `https://quickartweb-production.up.railway.app/failure`
     : 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/failure';
 
   const custom_data = {
@@ -870,10 +870,10 @@ const subPaymentData = async (appDetails) => {
   };
 
   const success_url = appDetails.platform === 'web'
-    ? 'https://zap-quickart-api-production.up.railway.app/quickart_web/success?screen=subscription'
+    ? 'https://quickartweb-production.up.railway.app/success?screen=subscription'
     : `https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
   const cancel_url = appDetails.platform === 'web'
-    ? 'https://quickart2.democheck.in/quickart_web/failure'
+    ? 'https://quickartweb-production.up.railway.app/failure'
     : 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/failure';
 
   const group_id = number;
