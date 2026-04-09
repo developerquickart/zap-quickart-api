@@ -76,11 +76,11 @@ const SaveCardDetails = async (appDetails) => {
     cancel_url = `https://quickartweb-production.up.railway.app/${appDetails.cancelroutename}?addedFrom=${appDetails.addedFrom}&tab=${appDetails.tab}`;
   } else {
 
-    success_url = 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/savesuccess'
-    cancel_url = 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/savefailure'
+    success_url = 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/savesuccess'
+    cancel_url = 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/savefailure'
   }
 
-  const server_callback_url = 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/';
+  const server_callback_url = 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/';
   const mainJson = {
     merchant_key: merchantKey,
     operation: 'purchase',

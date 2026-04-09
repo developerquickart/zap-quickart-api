@@ -204,10 +204,10 @@ const trailPaymentData = async (appDetails) => {
   const ordertype = 'trail';
   const success_url = (appDetails.platform == "web")
     ? `https://quickart2.democheck.in/quickart_web/success?screen=daily`
-    : `https://supaapioriginal-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
+    : `https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
   const cancel_url = (appDetails.platform == "web")
     ? `https://quickart2.democheck.in/quickart_web/failure`
-    : 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/failure';
+    : 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/failure';
 
   const custom_data = {
     ordertype, payment_status, group_id, user_id: userIdStr, address_id, bank_id, si_sub_ref_no, store_id,
@@ -223,7 +223,7 @@ const trailPaymentData = async (appDetails) => {
     methods: payment_method == 'applepay' ? ['applepay'] : ['card'],
     success_url,
     cancel_url,
-    server_callback_url: 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/',
+    server_callback_url: 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/',
     hash,
     order: orderJson,
     customer: customerInfo,
@@ -574,7 +574,7 @@ const preparePaymentData = async (appDetails) => {
       methods: ['applepay'],
       success_url: success_url,
       cancel_url: cancel_url,
-      server_callback_url: 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/',
+      server_callback_url: 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/',
       hash,
       order: orderJson,
       customer: customerInfo,
@@ -589,7 +589,7 @@ const preparePaymentData = async (appDetails) => {
       methods: ['card'],
       success_url: success_url,
       cancel_url: cancel_url,
-      server_callback_url: 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/',
+      server_callback_url: 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/',
       hash,
       order: orderJson,
       customer: customerInfo,
@@ -870,11 +870,11 @@ const subPaymentData = async (appDetails) => {
   };
 
   const success_url = appDetails.platform === 'web'
-    ? 'https://supaapioriginal-production.up.railway.app/quickart_web/success?screen=subscription'
-    : `https://supaapioriginal-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
+    ? 'https://zap-quickart-api-production.up.railway.app/quickart_web/success?screen=subscription'
+    : `https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/successfirst?order_id=${number}`;
   const cancel_url = appDetails.platform === 'web'
     ? 'https://quickart2.democheck.in/quickart_web/failure'
-    : 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/failure';
+    : 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/failure';
 
   const group_id = number;
   const ordertype = 'subscription';
@@ -883,8 +883,8 @@ const subPaymentData = async (appDetails) => {
   const custom_data = { ordertype, payment_status, group_id, user_id, address_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, del_partner_instruction, order_instruction, device_id, is_subscription, payment_type, totalwalletamt, totalrefwalletamt, platform, browser, storeItemList };
 
   const mainJson = (payment_method === 'applepay')
-    ? { merchant_key: merchantKey, operation: 'purchase', methods: ['applepay'], success_url, cancel_url, server_callback_url: 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/', hash, order: orderJson, customer: customerInfo, billing_address: billingAddress, custom_data }
-    : { merchant_key: merchantKey, operation: 'purchase', methods: ['card'], success_url, cancel_url, server_callback_url: 'https://supaapioriginal-production.up.railway.app/testnodejsapp/api/paymentnotification/', hash, order: orderJson, customer: customerInfo, billing_address: billingAddress, custom_data };
+    ? { merchant_key: merchantKey, operation: 'purchase', methods: ['applepay'], success_url, cancel_url, server_callback_url: 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/', hash, order: orderJson, customer: customerInfo, billing_address: billingAddress, custom_data }
+    : { merchant_key: merchantKey, operation: 'purchase', methods: ['card'], success_url, cancel_url, server_callback_url: 'https://zap-quickart-api-production.up.railway.app/testnodejsapp/api/paymentnotification/', hash, order: orderJson, customer: customerInfo, billing_address: billingAddress, custom_data };
 
   logToFile("https://checkout.totalpay.global/api/v1/session " + JSON.stringify(mainJson));
 
