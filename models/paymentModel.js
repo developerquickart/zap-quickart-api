@@ -315,6 +315,12 @@ const preparePaymentData = async (appDetails) => {
   const payment_type = "paynow";
   const platform = appDetails.platform;
   const browser = appDetails.browser;
+  const exp_eta = appDetails.exp_eta;
+  const parsedExpEta = Number(exp_eta);
+
+  if (!Number.isInteger(parsedExpEta)) {
+    throw new Error('exp_eta is required and must be an integer');
+  }
 
   // Get today's date and current time in Dubai timezone
   const dubaiTime = moment.tz("Asia/Dubai");
@@ -534,7 +540,7 @@ const preparePaymentData = async (appDetails) => {
 
 
   const orderJson = { number, description, amount, currency };
-  const custom_data = { ordertype, payment_status, group_id, user_id, address_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, delivery_date, time_slot, del_partner_tip, del_partner_instruction, order_instruction, device_id, totalwalletamt, totalrefwalletamt, is_subscription, payment_type, platform, browser, storeItemList }
+  const custom_data = { ordertype, payment_status, group_id, user_id, address_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, delivery_date, time_slot, del_partner_tip, del_partner_instruction, order_instruction, device_id, totalwalletamt, totalrefwalletamt, is_subscription, payment_type, platform, browser, exp_eta: parsedExpEta, storeItemList }
 
   if (appDetails.platform == "web") {
     var success_url = `https://quickartweb-production.up.railway.app/${appDetails.successroutename}?screen=daily`;

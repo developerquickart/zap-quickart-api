@@ -43,13 +43,19 @@ const getQuickordercheckout = async (appDetails) => {
             group_id: paymentOrderId,
             platform: platform,
             browser: browser,
+            exp_eta: expEta,
         } = appDetails;
 
 
         const delPartnerTip = delPartnerTips || 0;
         const walletNew = (wallet || '').toString().trim().toLowerCase();
         const safePaymentMethod = (paymentMethod || '').toString().trim().toLowerCase();
+        const parsedExpEta = Number(expEta);
         let paymentMethodNew = '';
+
+        if (!Number.isInteger(parsedExpEta)) {
+            throw new Error('exp_eta is required and must be an integer');
+        }
 
 
         // Determine siStatus based on siSubRefNo
@@ -355,7 +361,7 @@ const getQuickordercheckout = async (appDetails) => {
             const is_subscription = null;
             const payment_type = paymentType;
             const address_id = addressId;
-            const custom_data = { address_id, ordertype, payment_status, group_id, user_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, delivery_date, time_slot, del_partner_tip, del_partner_instruction, order_instruction, device_id, totalwalletamt, totalrefwalletamt, is_subscription, payment_type, platform, browser, storeItemList };
+            const custom_data = { address_id, ordertype, payment_status, group_id, user_id, bank_id, si_sub_ref_no, store_id, payment_method, wallet, payment_gateway, payment_id, coupon_id, coupon_code, discount_amount, delivery_date, time_slot, del_partner_tip, del_partner_instruction, order_instruction, device_id, totalwalletamt, totalrefwalletamt, is_subscription, payment_type, platform, browser, exp_eta: parsedExpEta, storeItemList };
 
             const mainJsonSaveRequest = {
                 merchant_key: "",
@@ -672,6 +678,7 @@ const getQuickordercheckout = async (appDetails) => {
                     browser: (browser) ? browser : '',
                     is_offer_product: is_offer_product,
                     order_status: 'Pending',
+                    exp_eta: parsedExpEta,
                     is_zap_order: true,
                 }).returning('order_id');
 

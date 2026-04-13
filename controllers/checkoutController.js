@@ -57,6 +57,8 @@ const checkout_quickorder = async (req, res) => {
         res.status(400).json({ message: 'Select any Address' });
       }else if (error.message === 'Select Payment Method') {
         res.status(400).json({ message: 'Select Payment Method' });
+      }else if (error.message === 'exp_eta is required and must be an integer') {
+        res.status(400).json({ message: 'exp_eta is required and must be an integer' });
       }else if(error.message === 'cart is empty'){
         res.status(400).json({ message: 'Cart is empty' });
       }
@@ -88,6 +90,8 @@ const checkout_quickordersdk = async (req, res) => {
         res.status(400).json({ message: 'Select any Address' });
       }else if (error.message === 'Select Payment Method') {
         res.status(400).json({ message: 'Select Payment Method' });
+      }else if (error.message === 'exp_eta is required and must be an integer') {
+        res.status(400).json({ message: 'exp_eta is required and must be an integer' });
       }else if(error.message === 'cart is empty'){
         res.status(400).json({ message: 'Cart is empty' });
       }

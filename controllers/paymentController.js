@@ -29,10 +29,12 @@ const payment = async (req, res) => {
     res.status(200).json(data);
 
   } catch(error){
-
-    
-          console.error(error);
-          res.status(500).json({ status: 0, message: error.message  });
+          if (error.message === 'exp_eta is required and must be an integer') {
+            res.status(400).json({ message: 'exp_eta is required and must be an integer' });
+          } else {
+            console.error(error);
+            res.status(500).json({ status: 0, message: error.message  });
+          }
         
 
   }
