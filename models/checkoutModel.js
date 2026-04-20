@@ -511,7 +511,6 @@ const getQuickordercheckout = async (appDetails) => {
                                 const updatedRows = await knex('store_products')
                                     .where('varient_id', varientId)
                                     .andWhere('store_id', storeId)
-                                    .andWhere('stock', '>=', orderQty)
                                     .increment('stock', orderQty);
                             }
                             throw new Error(`Invalid response from payment gateway: ${JSON.stringify(data)}`);
@@ -541,7 +540,6 @@ const getQuickordercheckout = async (appDetails) => {
                                 const updatedRows = await knex('store_products')
                                     .where('varient_id', varientId)
                                     .andWhere('store_id', storeId)
-                                    .andWhere('stock', '>=', orderQty)
                                     .increment('stock', orderQty);
                             }
                             throw new Error(errorMessage);
@@ -567,7 +565,6 @@ const getQuickordercheckout = async (appDetails) => {
                                 const updatedRows = await knex('store_products')
                                     .where('varient_id', varientId)
                                     .andWhere('store_id', storeId)
-                                    .andWhere('stock', '>=', orderQty)
                                     .increment('stock', orderQty);
                             }
                             throw new Error(`HTTP error! Status: ${response.status}`);
@@ -607,7 +604,6 @@ const getQuickordercheckout = async (appDetails) => {
                             const updatedRows = await knex('store_products')
                                 .where('varient_id', varientId)
                                 .andWhere('store_id', storeId)
-                                .andWhere('stock', '>=', orderQty)
                                 .increment('stock', orderQty);
                         }
                         console.error('Error sending payment data:', error);
@@ -640,7 +636,6 @@ const getQuickordercheckout = async (appDetails) => {
                     const updatedRows = await knex('store_products')
                         .where('varient_id', varientId)
                         .andWhere('store_id', storeId)
-                        .andWhere('stock', '>=', orderQty)
                         .increment('stock', orderQty);
                 }
                 throw new Error('No bank details found for the given criteria.');
