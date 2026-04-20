@@ -492,6 +492,28 @@ const getQuickordercheckout = async (appDetails) => {
                         logToFile(`[RECURRING PAYMENT] Response: ${JSON.stringify(data)}`);
 
                         if (!data || !data.status) {
+                            const cartItems = await knex('store_orders')
+                                .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+                                .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                                .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                                .select('store_orders.*', 'product.product_name as product_name')
+                                .where('store_orders.store_approval', userId)
+                                .whereNull('subscription_flag')
+                                .where('store_orders.order_cart_id', "incart");
+
+                            for (const productList of cartItems) {
+                                const varientId = productList.varient_id;
+                                const orderQty = parseInt(productList.qty || 0);
+                                const productName = productList.product_name || 'this product';
+                                if (!varientId || !storeId) {
+                                    throw new Error('Invalid product or store');
+                                }
+                                const updatedRows = await knex('store_products')
+                                    .where('varient_id', varientId)
+                                    .andWhere('store_id', storeId)
+                                    .andWhere('stock', '>=', orderQty)
+                                    .increment('stock', orderQty);
+                            }
                             throw new Error(`Invalid response from payment gateway: ${JSON.stringify(data)}`);
                         }
 
