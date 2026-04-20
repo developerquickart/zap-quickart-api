@@ -159,6 +159,14 @@ const getQuickordercheckout = async (appDetails) => {
                     logToFile("One or more items in your cart are unavailable/out of stock. Unable to proceed with the order. ");
                     throw new Error("One or more items in your cart are unavailable/out of stock. Unable to proceed with the order.");
                 }
+                const stock = parseInt(storeItem.stock || 0);
+                const cartQty = parseInt(storeItem.qty || 0);
+                if (cartQty > stock) {
+                    logToFile(`Stock insufficient: ${storeItem.product_name}`);
+                    throw new Error(
+                        `Only ${stock} quantity available for ${storeItem.product_name}. Please revise the selected quantity.`
+                    );
+                }
 
                 if (!storeItem.sub_delivery_date || storeItem.sub_delivery_date === undefined || storeItem.sub_delivery_date === null || storeItem.sub_delivery_date === '' || storeItem.sub_delivery_date === 'undefined'
                     || storeItem.sub_time_slot === undefined || storeItem.sub_time_slot === null || storeItem.sub_time_slot === '' || storeItem.sub_time_slot === 'undefined') {
@@ -194,6 +202,45 @@ const getQuickordercheckout = async (appDetails) => {
         if (!user) {
             logToFile("User not found ");
             throw new Error('User not found');
+        }
+        const cartItems = await knex('store_orders')
+            .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+            .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+            .join('product', 'product_varient.product_id', '=', 'product.product_id')
+            .select('store_orders.*', 'product.product_name as product_name')
+            .where('store_orders.store_approval', userId)
+            .whereNull('subscription_flag')
+            .where('store_orders.order_cart_id', "incart");
+
+        for (const productList of cartItems) {
+
+            const varientId = productList.varient_id;
+            const orderQty = parseInt(productList.qty || 0);
+            const productName = productList.product_name || 'this product';
+
+            if (!varientId || !storeId) {
+                throw new Error('Invalid product or store');
+            }
+
+            const updatedRows = await knex('store_products')
+                .where('varient_id', varientId)
+                .andWhere('store_id', storeId)
+                .andWhere('stock', '>=', orderQty)
+                .decrement('stock', orderQty);
+
+            if (!updatedRows) {
+                const currentStockRow = await knex('store_products')
+                    .where('varient_id', varientId)
+                    .andWhere('store_id', storeId)
+                    .select('stock')
+                    .first();
+
+                const availableStock = currentStockRow ? currentStockRow.stock : 0;
+
+                throw new Error(
+                    `Only ${availableStock} quantity available for ${productName}`
+                );
+            }
         }
         //store order details
         const storeDetailsAmt = await knex('store_orders')
@@ -453,10 +500,54 @@ const getQuickordercheckout = async (appDetails) => {
                             const errorMessage = status === 'decline'
                                 ? 'Card issue detected! Status: decline'
                                 : `HTTP error! Status: ${data.status}`;
+                            const cartItems = await knex('store_orders')
+                                .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+                                .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                                .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                                .select('store_orders.*', 'product.product_name as product_name')
+                                .where('store_orders.store_approval', userId)
+                                .whereNull('subscription_flag')
+                                .where('store_orders.order_cart_id', "incart");
+
+                            for (const productList of cartItems) {
+                                const varientId = productList.varient_id;
+                                const orderQty = parseInt(productList.qty || 0);
+                                const productName = productList.product_name || 'this product';
+                                if (!varientId || !storeId) {
+                                    throw new Error('Invalid product or store');
+                                }
+                                const updatedRows = await knex('store_products')
+                                    .where('varient_id', varientId)
+                                    .andWhere('store_id', storeId)
+                                    .andWhere('stock', '>=', orderQty)
+                                    .increment('stock', orderQty);
+                            }
                             throw new Error(errorMessage);
                         }
 
                         if (!response.ok) {
+                            const cartItems = await knex('store_orders')
+                                .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+                                .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                                .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                                .select('store_orders.*', 'product.product_name as product_name')
+                                .where('store_orders.store_approval', userId)
+                                .whereNull('subscription_flag')
+                                .where('store_orders.order_cart_id', "incart");
+
+                            for (const productList of cartItems) {
+                                const varientId = productList.varient_id;
+                                const orderQty = parseInt(productList.qty || 0);
+                                const productName = productList.product_name || 'this product';
+                                if (!varientId || !storeId) {
+                                    throw new Error('Invalid product or store');
+                                }
+                                const updatedRows = await knex('store_products')
+                                    .where('varient_id', varientId)
+                                    .andWhere('store_id', storeId)
+                                    .andWhere('stock', '>=', orderQty)
+                                    .increment('stock', orderQty);
+                            }
                             throw new Error(`HTTP error! Status: ${response.status}`);
                         }
 
@@ -475,6 +566,28 @@ const getQuickordercheckout = async (appDetails) => {
                         //return await response.json();
                     } catch (error) {
                         logToFile(`checkoutModel fun getQuickordercheckout error: ${error instanceof Error ? error.stack || error.message : JSON.stringify(error)}`);
+                        const cartItems = await knex('store_orders')
+                            .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+                            .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                            .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                            .select('store_orders.*', 'product.product_name as product_name')
+                            .where('store_orders.store_approval', userId)
+                            .whereNull('subscription_flag')
+                            .where('store_orders.order_cart_id', "incart");
+
+                        for (const productList of cartItems) {
+                            const varientId = productList.varient_id;
+                            const orderQty = parseInt(productList.qty || 0);
+                            const productName = productList.product_name || 'this product';
+                            if (!varientId || !storeId) {
+                                throw new Error('Invalid product or store');
+                            }
+                            const updatedRows = await knex('store_products')
+                                .where('varient_id', varientId)
+                                .andWhere('store_id', storeId)
+                                .andWhere('stock', '>=', orderQty)
+                                .increment('stock', orderQty);
+                        }
                         console.error('Error sending payment data:', error);
                         throw error; // Re-throw for handling in the calling code
                     }
@@ -486,6 +599,28 @@ const getQuickordercheckout = async (appDetails) => {
             } else {
                 // No BankDetails found
                 logToFile("No bank details found for the given criteria.");
+                const cartItems = await knex('store_orders')
+                    .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+                    .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                    .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                    .select('store_orders.*', 'product.product_name as product_name')
+                    .where('store_orders.store_approval', userId)
+                    .whereNull('subscription_flag')
+                    .where('store_orders.order_cart_id', "incart");
+
+                for (const productList of cartItems) {
+                    const varientId = productList.varient_id;
+                    const orderQty = parseInt(productList.qty || 0);
+                    const productName = productList.product_name || 'this product';
+                    if (!varientId || !storeId) {
+                        throw new Error('Invalid product or store');
+                    }
+                    const updatedRows = await knex('store_products')
+                        .where('varient_id', varientId)
+                        .andWhere('store_id', storeId)
+                        .andWhere('stock', '>=', orderQty)
+                        .increment('stock', orderQty);
+                }
                 throw new Error('No bank details found for the given criteria.');
             }
         }
@@ -1789,19 +1924,19 @@ const getSubordercheckout = async (appDetails) => {
 
                 const storeTotalPriceSub = parseFloat(storeDetailsAmt?.totalprice ?? storeDetailsAmt?.Totalprice ?? 0);
                 let WalletRefDiscountAmount = ((storeTotalPriceSub * 50) / 100).toFixed(2);
-                
+
                 // If they are empty, we might need to recalculate them based on available balance and caps
                 // User snippet shows a specific logic for RefWalletBalance:
                 // RefWalletBalance = (wallet.toLowerCase() === 'yes' && RefWalletBalance >= WalletRefDiscountAmount) ? WalletRefDiscountAmount : RefWalletBalance;
-                
+
                 if (isWalletAmtMissing) {
                     // This was the old logic, keeping it for wallet_balance
                     let WalletDiscountAmount = ((storeTotalPriceSub * 50) / 100).toFixed(2);
                     totalWalletAmt = ((actualWallet - totalReserveAmt) >= WalletDiscountAmount) ? WalletDiscountAmount : (actualWallet - totalReserveAmt);
                 }
-                
+
                 if (isRefWalletAmtMissing) {
-                     totalRefWalletAmt = (actualRefWallet >= WalletRefDiscountAmount) ? WalletRefDiscountAmount : actualRefWallet;
+                    totalRefWalletAmt = (actualRefWallet >= WalletRefDiscountAmount) ? WalletRefDiscountAmount : actualRefWallet;
                 }
             }
         }
