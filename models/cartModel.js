@@ -724,7 +724,7 @@ const showsubCart = async (appDetatils) => {
 
 }
 
-const addtoCart = async (appDetatils) => {
+const addtoCart737 = async (appDetatils) => {
   const { user_id, qty, store_id, varient_id, device_id, platform, product_feature_id } = appDetatils;
   const productItems = await knex('product_varient')
     .where('varient_id', varient_id)
@@ -879,6 +879,251 @@ const addtoCart = async (appDetatils) => {
       repeated_order_cart: '',
       platform: (platform) ? platform : null,
       is_offer_product: (product.is_offer_product == 1) ? 1 : 0,
+      product_feature_id: (product_feature_id) ? product_feature_id : null
+    };
+
+    if (!existingOrder) {
+      // Insert new order if no existing order is found
+      if (qty != 0) {
+        orderData.store_order_id = await getNextStoreOrderId();
+        await knex('store_orders').insert(orderData);
+      }
+    } else {
+      // Delete existing order and insert new one
+      await knex('store_orders')
+        .where('store_approval', user_id)
+        .where('varient_id', varient_id)
+        .where('order_cart_id', 'incart')
+        .whereNull('subscription_flag')
+        .delete();
+      if (qty != 0) {
+        orderData.store_order_id = await getNextStoreOrderId();
+        await knex('store_orders').insert(orderData);
+      }
+    }
+
+    // Sync Redis: Update or Delete from Daily Cart HASH (Awaited for immediate consistency)
+    await syncCartItem(user_id, store_id, varient_id, qty, false);
+
+    const sum1 = await knex('store_orders')
+      .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+      .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+      .join('product', 'product_varient.product_id', '=', 'product.product_id')
+      .where('store_products.store_id', store_id)
+      .where('store_orders.store_approval', user_id)
+      .where('store_orders.order_cart_id', 'incart')
+      .whereNull('subscription_flag')
+      .select(knex.raw('SUM(store_orders.total_mrp) as totalmrp'), knex.raw('SUM(store_orders.price) as totalprice'), knex.raw('COUNT(store_orders.store_order_id) as count'))
+      .first();
+
+    if (sum1.totalprice < 30) {
+      const deletedOfferItems = await knex('store_orders')
+        .where('store_approval', user_id)
+        .where('order_cart_id', 'incart')
+        .where('is_offer_product', 1)
+        .whereIn('varient_id', function () {
+          this.select('pv.varient_id')
+            .from('product_varient as pv')
+            .join('product as p', 'p.product_id', 'pv.product_id')
+            .where('p.is_offer_product', 1)
+            .whereRaw("DATE(p.offer_date) = ?", [dubaiToday]);
+        })
+        .whereNull('subscription_flag')
+        .returning(['store_id', 'varient_id'])
+        .delete();
+
+      // Sync Redis cart HASH for all offer items deleted by threshold rule.
+      if (deletedOfferItems && deletedOfferItems.length) {
+        await Promise.all(
+          deletedOfferItems.map((item) => {
+            const deleteStoreId = item.store_id || store_id;
+            const cartHashKey = generateCartHashKey(user_id, deleteStoreId);
+            return hDel(cartHashKey, item.varient_id.toString());
+          })
+        );
+      }
+    }
+
+    const sum = await knex('store_orders')
+      .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+      .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+      .join('product', 'product_varient.product_id', '=', 'product.product_id')
+      .where('store_products.store_id', store_id)
+      .where('store_orders.store_approval', user_id)
+      .where('store_orders.order_cart_id', 'incart')
+      .whereNull('subscription_flag')
+      .select(knex.raw('SUM(store_orders.total_mrp) as totalmrp'), knex.raw('SUM(store_orders.price) as totalprice'), knex.raw('COUNT(store_orders.store_order_id) as count'))
+      .first();
+    // Handle cases where the result might be null
+    const customizedProduct = {
+      saving_price: (sum.totalmrp || 0) - (sum.totalprice || 0),
+      total_price: sum.totalprice || 0,
+      total_items: Number(sum.count) || 0,
+      product_name: product.product_name,
+      price: parseFloat(PriceNew),
+    };
+    return customizedProduct;
+  } else {
+    return 'No more product available.';
+  }
+
+}
+const addtoCart = async (appDetatils) => {
+  const { user_id, qty, store_id, varient_id, device_id, platform, product_feature_id } = appDetatils;
+  const productItems = await knex('product_varient')
+    .where('varient_id', varient_id)
+    .first(); // Retrieves the first record
+
+  const baseurl = process.env.BUNNY_NET_IMAGE;
+  if (productItems) {
+
+    // Query the user information
+    const user = await knex('users')
+      .select('user_phone', 'wallet')
+      .where('id', user_id)
+      .first();
+
+    // Check if the user is found
+    if (!user) {
+      return 'User not Found';
+    }
+
+    // Extract the user phone
+    const userPhone = user.user_phone;
+
+    const product = await knex('store_products')
+      .join('product_varient', 'store_products.varient_id', 'product_varient.varient_id')
+      .join('product', 'product_varient.product_id', 'product.product_id')
+      .where('store_products.varient_id', varient_id)
+      .andWhere('store_products.store_id', store_id)
+      .first(); // Retrieves the first matching record
+
+    if (qty > product.max_ord_qty) {
+      const p_name = `${product.product_name} (${product.quantity}${product.unit}) * ${qty}`;
+      const message = `You have to order ${p_name} quantity between ${product.min_ord_qty} to ${product.max_ord_qty}.`;
+      return message;
+    }
+
+    if (qty > product.stock) { // Check if the requested quantity exceeds the available stock
+      //const message = 'No more stock available.';
+      //return message;
+      throw new Error("No more stock available");
+    }
+
+    // Check for current deal (based on current server date)
+    const now = new Date();
+    const deal = await knex('deal_product')
+      .where('varient_id', varient_id)
+      .andWhere('store_id', store_id)
+      .andWhere('valid_from', '<=', now.toISOString().split('T')[0])
+      .andWhere('valid_to', '>', now.toISOString().split('T')[0])
+      .first(); // Retrieves the first matching deal
+    // Offer products must be valid only for today's date in UAE (Asia/Dubai)
+    const dubaiToday = moment().tz('Asia/Dubai').format('YYYY-MM-DD');
+    const productOfferDate = product.offer_date
+      ? moment(product.offer_date).tz('Asia/Dubai').format('YYYY-MM-DD')
+      : null;
+    const isTodayOffer = product.is_offer_product == 1 && productOfferDate === dubaiToday;
+
+    let price;
+    if (deal) {
+      price = parseFloat(deal.deal_price);
+    } else if (isTodayOffer) {
+      price = product.offer_price;
+    } else {
+      price = parseFloat(product.price);
+    }
+
+    if (isTodayOffer) {
+      product.mrp = product.offer_price;
+    }
+
+    let price2 = price * qty;
+    let price5 = product.mrp * qty;
+    let created_at = new Date();
+
+    // Check if the order already exists in the cart
+    const existingOrder = await knex('store_orders')
+      .where('store_approval', user_id)
+      .andWhere('varient_id', varient_id)
+      .andWhere('order_cart_id', 'incart')
+      .whereNull('subscription_flag')
+      .first();
+
+    // Check if the product/subcategory/category discount percentage
+    const productVarient = await knex('product_varient')
+      .where('varient_id', varient_id)
+      .first();
+    var product_id = productVarient.product_id;
+
+    const productDeatils = await knex('product')
+      .where('product_id', product_id)
+      .first();
+    var cat_id = productDeatils.cat_id;
+    var percentage = productDeatils.percentage;
+    var availability = productDeatils.availability;
+    const categoriesSubDeatils = await knex('categories')
+      .where('cat_id', cat_id)
+      .first();
+    var percentageSubCat = categoriesSubDeatils.discount_per;
+    var parent = categoriesSubDeatils.parent;
+
+    const categoriesParentDeatils = await knex('categories')
+      .where('cat_id', parent)
+      .first();
+    var PriceNew = price2;
+    /*
+      if(availability == 'quick'){
+      var percentageCat=categoriesParentDeatils.discount_per;
+      if(percentage > 0)
+      {
+      PriceNew=((price5-((price5*percentage)/100))).toFixed(2);
+      }
+      else if(percentageSubCat > 0)
+      {
+      PriceNew=((price5-((price5*percentageSubCat)/100))).toFixed(2);
+      }
+      else if(percentageCat > 0)
+      {
+      PriceNew=((price5-((price5*percentageCat)/100))).toFixed(2);
+      }else
+      {
+      PriceNew=price2;
+      }
+      }else
+      {
+      PriceNew=price2; 
+      }
+    */
+
+    const dubaiTime = moment.tz("Asia/Dubai");
+    const todayDubai = dubaiTime.format("YYYY-MM-DD HH:mm:ss");
+
+    // Define order data
+    const orderData = {
+      store_id: store_id,
+      varient_id: varient_id,
+      qty: qty,
+      product_name: product.product_name,
+      varient_image: product.product_image,
+      quantity: product.quantity,
+      unit: product.unit,
+      store_approval: user_id,
+      total_mrp: parseFloat(price5),
+      order_cart_id: 'incart',
+      order_date: todayDubai,
+      repeat_orders: 1,
+      price: parseFloat(PriceNew),
+      description: product.description,
+      tx_per: 0,
+      price_without_tax: 0,
+      tx_price: 0,
+      tx_name: 'vat',
+      type: product.type,
+      repeated_order_cart: '',
+      platform: (platform) ? platform : null,
+      // Mark as offer in cart only when the offer is active for Dubai today.
+      is_offer_product: isTodayOffer ? 1 : 0,
       product_feature_id: (product_feature_id) ? product_feature_id : null
     };
 
