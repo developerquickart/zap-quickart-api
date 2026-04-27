@@ -710,7 +710,7 @@ const grpordDetails = async (appDetatils) => {
 
 };
 
-const getCancelquickOrderProd = async (appDetatils) => {
+const getCancelquickOrderProd737 = async (appDetatils) => {
   const minCardRefundThreshold = 0.09;
   const user_id = appDetatils.user_id
   const cart_id = appDetatils.cart_id
@@ -1666,6 +1666,1196 @@ const getCancelquickOrderProd = async (appDetatils) => {
   }
 
 };
+const getCancelquickOrderProd = async (appDetatils) => {
+  const minCardRefundThreshold = 0.09;
+  const user_id = appDetatils.user_id
+  const cart_id = appDetatils.cart_id
+  const cancel_reason = appDetatils.cancel_reason
+  let groupIdForEmail = null; // in scope for email section after if block
+  let autoCancelledOfferCartIds = [];
+  let autoOfferCancellationApplied = false;
+
+  if (cart_id && user_id) {
+
+    // Check if there are any orders that are not already cancelled
+    const existingOrders = await knex('orders')
+      .where('cart_id', cart_id)
+      .where('order_status', 'Cancelled')
+      .first();
+    // If there are no orders to cancel, return a message
+    if (existingOrders) {
+      throw new Error('Order are already cancelled.');
+    }
+
+
+    subcription_data = await knex('subscription_order')
+      .where('cart_id', cart_id)
+      .where('order_status', 'Pending')
+      //.where('si_payment_flag', 'no')
+      //.where('processing_product','!=','1')
+      .update({
+        'cancel_reason': cancel_reason,
+        'order_status': "Cancelled"
+      });
+
+    order_data = await knex('orders')
+      .where('cart_id', cart_id)
+      //.where('group_id', group_id)
+      .where('order_status', 'Pending')
+      // .where('payment_status','!=','success')
+      .update({ 'order_status': "Cancelled", 'cancelling_reason': cancel_reason });
+
+    const cancelledCardRefundRow = await knex('orders')
+      .where('cart_id', cart_id)
+      .select(
+        knex.raw("COALESCE(SUM(CASE WHEN orders.payment_method != 'COD' AND orders.payment_status = 'success' THEN GREATEST((orders.total_price::numeric - COALESCE(orders.paid_by_wallet, 0)::numeric - COALESCE(orders.paid_by_ref_wallet, 0)::numeric), 0) ELSE 0 END), 0) as card_paid")
+      )
+      .first();
+    let cancelledCardRefund = Number(cancelledCardRefundRow?.card_paid || 0);
+    if (cancelledCardRefund <= minCardRefundThreshold) {
+      cancelledCardRefund = 0;
+    }
+
+    //After cancelled order wallet amount save 
+    const orderDetail = await knex('orders')
+      .where('cart_id', cart_id)
+      .select('payment_method', 'user_id', 'group_id', 'coupon_code')
+      .first();
+    if (!orderDetail?.group_id) throw new Error('Order not found for this cart.');
+    const groupID = orderDetail.group_id;
+    groupIdForEmail = groupID;
+    const couponCode = orderDetail.coupon_code ?? '';
+    const userId = appDetatils.user_id;
+    const offerCancelEligibilityRow = await knex('store_orders as so')
+      .join('orders as o', 'o.cart_id', 'so.order_cart_id')
+      .join('product_varient as pv', 'pv.varient_id', 'so.varient_id')
+      .join('product as p', 'p.product_id', 'pv.product_id')
+      .where('so.order_cart_id', cart_id)
+      .where('p.is_offer_product', 1)
+      .whereRaw('p.offer_date::date = o.order_date::date')
+      .first();
+    const canApplyOfferThresholdCancellation = !!offerCancelEligibilityRow;
+
+    const orderDetails = await knex('orders')
+      .select('*')
+      .where('group_id', groupID);
+
+
+
+    const storeDetailsAmtAll = await knex('orders')
+      .where('group_id', groupID)
+      .select(
+        knex.raw("COALESCE(SUM(NULLIF(trim(orders.cod_charges), '')::numeric), 0) as \"codCharges\""),
+        knex.raw("COALESCE(SUM(NULLIF(trim(orders.del_partner_tip), '')::numeric), 0) as \"delPartnerTip\""),
+        knex.raw('COALESCE(SUM(orders.paid_by_wallet), 0) as paid_by_wallet'),
+        knex.raw('COALESCE(SUM(orders.paid_by_ref_wallet), 0) as paid_by_ref_wallet'),
+        knex.raw('MAX(orders.payment_method) as payment_method')
+      )
+      .first();
+    const paidByWallet = Math.round(storeDetailsAmtAll?.paid_by_wallet ?? 0);
+    const paidByRefWallet = Math.round(storeDetailsAmtAll?.paid_by_ref_wallet ?? 0);
+    let WalletAddtoUserAccount = 0;
+    let FinalWalletAmountUse = 0;
+    let cashWalletAddtoUserAccount = 0;
+    let cashFinalWalletAmountUse = 0;
+    for (const orders of orderDetails) {
+      const cartID = orders.cart_id;
+      if (orders.payment_method == 'COD') {
+        //COD Code Write
+        const storeOrderDetails = await knex('store_orders')
+          .where('order_cart_id', cartID)
+          .select('*')
+          .first();
+
+        const storeDetailsAmt = await knex('store_orders')
+          .join('orders', 'orders.cart_id', 'store_orders.order_cart_id')
+          .where('group_id', groupID)
+          .whereNot('orders.order_status', 'Cancelled')
+          .select(knex.raw('SUM(store_orders.total_mrp) as "Totalmrp"'), knex.raw('SUM(store_orders.price) as "Totalprice"'))
+          .first();
+
+
+        const TotalpriceStore = parseFloat(storeDetailsAmt?.Totalprice ?? 0);
+        const TotalmrpStore = parseFloat(storeDetailsAmt?.Totalmrp ?? 0);
+
+        // if(TotalpriceStore < 30){
+
+        //     order_data = await knex('orders')
+        //       .where('group_id', groupID)
+        //       .where('is_offer_product', '1')
+        //       .update({'order_status':"Cancelled"});
+
+        //     subcription_data = await knex('subscription_order')
+        //             .where('group_id', groupID)
+        //             .where('is_offer_product', '1')
+        //             .update({'cancel_reason':cancel_reason,
+        //             'order_status':"Cancelled"});  
+
+        // }
+
+        const CouponDis = await knex('store_orders')
+          .join('orders', 'orders.cart_id', 'store_orders.order_cart_id')
+          .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+          .sum({ total_price: 'store_orders.price' })
+          .whereRaw('(store_orders.price::numeric / NULLIF(store_orders.qty::numeric, 0)) >= store_products.mrp::numeric')
+          .where('orders.group_id', groupID)
+          .whereNot('orders.order_status', 'Cancelled')
+          .first();
+
+        if (orders.order_status == 'Cancelled') {
+          const totalPrice = parseFloat(storeOrderDetails?.price ?? 0);
+          await knex('orders')
+            .where('cart_id', cartID)
+            .update({
+              'order_status': 'Cancelled',
+              'cancelling_reason': cancel_reason,
+              'total_price': parseFloat(totalPrice).toFixed(2),
+              'price_without_delivery': parseFloat(totalPrice).toFixed(2),
+              'total_products_mrp': parseFloat(totalPrice).toFixed(2),
+              'paid_by_wallet': 0,
+              'paid_by_ref_wallet': 0
+            });
+
+        } else {
+
+          const totalPrice = parseFloat(storeOrderDetails?.price ?? 0);
+          const totalMRP = parseFloat(storeOrderDetails?.total_mrp ?? 0);
+          const codCharges = parseFloat(storeDetailsAmtAll?.codCharges ?? 0);
+          const delPartnerTip = parseFloat(storeDetailsAmtAll?.delPartnerTip ?? 0);
+
+
+          let couponDiscount = 0;
+          let couponDiscounts = 0;
+          if (couponCode) {
+            const couponDetails = await knex('coupon')
+              .where('coupon_code', couponCode)
+              .select('*')
+              .first();
+            const itemMrp = await knex('store_products')
+              .where('varient_id', storeOrderDetails.varient_id)
+              .select('mrp')
+              .first();
+            const itemQty = parseFloat(storeOrderDetails?.qty ?? 0);
+            const unitPrice = itemQty > 0 ? (parseFloat(totalPrice) / itemQty) : 0;
+            couponDiscount = (itemQty > 0 && unitPrice >= parseFloat(itemMrp?.mrp ?? 0))
+              ? ((totalPrice * couponDetails.amount) / 100)
+              : 0;
+            couponDiscounts = (parseFloat(CouponDis?.total_price ?? 0) > 0) ? ((parseFloat(CouponDis?.total_price ?? 0) * couponDetails.amount) / 100) : 0;
+          }
+
+          const TotalPriceOrders = ((parseFloat(TotalpriceStore) - couponDiscounts) + codCharges + delPartnerTip);
+          const WalletDiscount = parseFloat(TotalPriceOrders) * 50 / 100;
+
+          WalletAddtoUserAccount = paidByRefWallet > WalletDiscount ? paidByRefWallet - WalletDiscount : 0;
+          const WalletUseOrder = WalletAddtoUserAccount == 0 && paidByRefWallet ? paidByRefWallet : paidByRefWallet - WalletDiscount;
+          cashWalletAddtoUserAccount = paidByWallet;
+
+          const codorderamt = codCharges ? (totalPrice * codCharges / TotalpriceStore) : 0;
+          const delPartnerTipAmt = delPartnerTip ? (totalPrice * delPartnerTip / TotalpriceStore) : 0;
+          const totalPriceAmt = (parseFloat(totalPrice) - parseFloat(couponDiscount)) + parseFloat(codorderamt) + parseFloat(delPartnerTipAmt);
+
+          let cashFinalWalletAmountUse = 0;
+          let FinalWalletAmountUse = 0;
+
+          if (paidByWallet > 0) {
+            const walletRef = await knex('wallet_history')
+              .where({
+                cart_id: cartID,
+                type: 'deduction',
+                resource: 'order_placed_wallet'
+              })
+              .select(
+                knex.raw(
+                  'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used'
+                )
+              )
+              .first();
+            cashFinalWalletAmountUse = (walletRef?.total_wallet_used || 0);
+          }
+
+          if (paidByRefWallet > 0) {
+            const walletRef = await knex('wallet_history')
+              .where({
+                cart_id: cartID,
+                type: 'deduction',
+                resource: 'order_placed_wallet_ref'
+              })
+              .select(
+                knex.raw(
+                  'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_ref_used'
+                )
+              )
+              .first();
+            FinalWalletAmountUse = (walletRef?.total_wallet_ref_used || 0);
+          }
+
+          await knex('orders')
+            .where('cart_id', cartID)
+            .update({
+              'total_price': parseFloat(totalPriceAmt).toFixed(2),
+              'price_without_delivery': parseFloat(totalPriceAmt).toFixed(2),
+              'total_products_mrp': parseFloat(totalPriceAmt).toFixed(2),
+              'coupon_discount': parseFloat(couponDiscount).toFixed(2),
+              'cod_charges': parseFloat(codorderamt).toFixed(2),
+              'del_partner_tip': parseFloat(delPartnerTipAmt).toFixed(2),
+            });
+
+        }
+
+      } else {
+
+        //CARD Code Write
+        const storeOrderDetails = await knex('store_orders')
+          .where('order_cart_id', cartID)
+          .select('*')
+          .first();
+
+        const storeDetailsAmt = await knex('store_orders')
+          .join('orders', 'orders.cart_id', 'store_orders.order_cart_id')
+          .where('group_id', groupID)
+          .whereNot('orders.order_status', 'Cancelled')
+          .select(knex.raw('SUM(store_orders.total_mrp) as "Totalmrp"'), knex.raw('SUM(store_orders.price) as "Totalprice"'))
+          .first();
+
+        const TotalpriceStore = parseFloat(storeDetailsAmt?.Totalprice ?? 0);
+        const TotalmrpStore = parseFloat(storeDetailsAmt?.Totalmrp ?? 0);
+
+        if (!autoOfferCancellationApplied && cartID == cart_id && TotalpriceStore < 30 && canApplyOfferThresholdCancellation) {
+          const pendingOfferRows = await knex('orders')
+            .where('group_id', groupID)
+            .where('is_offer_product', 1)
+            .where('order_status', 'Pending')
+            .select('cart_id');
+          autoCancelledOfferCartIds = pendingOfferRows
+            .map((row) => row.cart_id)
+            .filter((id) => id && id !== cart_id);
+
+          order_data = await knex('orders')
+            .where('group_id', groupID)
+            .where('is_offer_product', 1)
+            .update({ 'order_status': "Cancelled", 'cancelling_reason': cancel_reason });
+
+          subcription_data = await knex('subscription_order')
+            .where('group_id', groupID)
+            .where('is_offer_product', 1)
+            .update({
+              'cancel_reason': cancel_reason,
+              'order_status': "Cancelled"
+            });
+
+          console.log('[cancelledquickorderprod][offer-auto-cancel-triggered]', {
+            group_id: groupID,
+            requested_cart_id: cart_id,
+            trigger_cart_id: cartID,
+            total_price_store_after_cancel: Number(TotalpriceStore || 0).toFixed(2),
+            threshold: 30,
+            can_apply_offer_threshold_cancellation: canApplyOfferThresholdCancellation,
+            auto_cancelled_offer_cart_ids: autoCancelledOfferCartIds,
+          });
+
+          autoOfferCancellationApplied = true;
+        }
+
+        const CouponDis = await knex('store_orders')
+          .join('orders', 'orders.cart_id', 'store_orders.order_cart_id')
+          .join('store_products', 'store_orders.varient_id', '=', 'store_products.varient_id')
+          .sum({ total_price: 'store_orders.price' })
+          .whereRaw('(store_orders.price::numeric / NULLIF(store_orders.qty::numeric, 0)) >= store_products.mrp::numeric')
+          .where('orders.group_id', groupID)
+          .whereNot('orders.order_status', 'Cancelled')
+          .first();
+
+
+
+        if (orders.order_status == 'Cancelled') {
+          const totalPrice = parseFloat(storeOrderDetails?.price ?? 0);
+          const totalMrp = parseFloat(storeOrderDetails?.total_mrp ?? 0);
+          await knex('orders')
+            .where('cart_id', cartID)
+            .update({
+              'order_status': 'Cancelled',
+              'cancelling_reason': cancel_reason,
+              'total_price': totalPrice.toFixed(2),
+              'price_without_delivery': totalPrice.toFixed(2),
+              'total_products_mrp': totalPrice.toFixed(2),
+              'paid_by_wallet': 0,
+              'paid_by_ref_wallet': 0
+            });
+
+
+          let couponDiscount = 0;
+          let couponDiscounts = 0;
+          if (couponCode) {
+            const couponDetails = await knex('coupon')
+              .where('coupon_code', couponCode)
+              .select('*')
+              .first();
+            const itemMrp = await knex('store_products')
+              .where('varient_id', storeOrderDetails.varient_id)
+              .select('mrp')
+              .first();
+            const itemQty = parseFloat(storeOrderDetails?.qty ?? 0);
+            const unitPrice = itemQty > 0 ? (parseFloat(totalPrice) / itemQty) : 0;
+            couponDiscount = (itemQty > 0 && unitPrice >= parseFloat(itemMrp?.mrp ?? 0))
+              ? ((totalPrice * couponDetails.amount) / 100)
+              : 0;
+
+          }
+
+          if (cartID == cart_id) {
+            let deliveryPT = 0;
+            const result = await knex('orders')
+              .where('group_id', groupID)
+              .where('order_status', 'Cancelled')
+              .count({ cancelled_count: 'order_id' });
+
+            const cancelledCount = parseInt(result[0]?.cancelled_count ?? 0, 10);
+
+            const resultAll = await knex('orders')
+              .where('group_id', groupID)
+              .count({ all_count: 'order_id' });
+
+            const allCount = parseInt(resultAll[0]?.all_count ?? 0, 10);
+
+            const OrdersDetailsAmt = await knex('orders')
+              .where('group_id', groupID)
+              .select(knex.raw("COALESCE(SUM(NULLIF(trim(orders.del_partner_tip), '')::numeric), 0) as \"delPartnerTip\""))
+              .first();
+
+            if (cancelledCount === allCount) {
+              deliveryPT = parseFloat(OrdersDetailsAmt?.delPartnerTip ?? 0);
+            }
+            const TotalPriceOrdersAmt = ((parseFloat(totalPrice) - parseFloat(couponDiscount))) + parseFloat(deliveryPT);
+            const user = await knex('users')
+              .select('user_phone', 'wallet_balance', 'referral_balance')
+              .where('id', userId)
+              .first();
+
+            let walletUsedRaw = 0;
+            let refUsedRaw = 0;
+            if (paidByWallet > 0) {
+              const walletRef = await knex('wallet_history')
+                .where({
+                  cart_id: cartID,
+                  type: 'deduction',
+                  resource: 'order_placed_wallet'
+                })
+                .select(
+                  knex.raw(
+                    'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used'
+                  )
+                )
+                .first();
+              walletUsedRaw = Number(walletRef?.total_wallet_used || 0);
+            }
+            if (paidByRefWallet > 0) {
+              const walletRef = await knex('wallet_history')
+                .where({
+                  cart_id: cartID,
+                  type: 'deduction',
+                  resource: 'order_placed_wallet_ref'
+                })
+                .select(
+                  knex.raw(
+                    'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used_ref'
+                  )
+                )
+                .first();
+              refUsedRaw = Number(walletRef?.total_wallet_used_ref || 0);
+            }
+
+            let walletUsed = walletUsedRaw;
+            let refUsed = refUsedRaw;
+            if (cancelledCount !== allCount) {
+              const cancelledCartTipAmount = Math.max(0, Number(orders?.del_partner_tip || 0));
+              const totalWalletRefundRaw = Math.max(0, walletUsedRaw + refUsedRaw);
+              const tipToExcludeFromWalletRefund = Math.min(cancelledCartTipAmount, totalWalletRefundRaw);
+              if (tipToExcludeFromWalletRefund > 0 && totalWalletRefundRaw > 0) {
+                const walletShare = walletUsedRaw / totalWalletRefundRaw;
+                const refShare = refUsedRaw / totalWalletRefundRaw;
+                walletUsed = Math.max(0, walletUsedRaw - (tipToExcludeFromWalletRefund * walletShare));
+                refUsed = Math.max(0, refUsedRaw - (tipToExcludeFromWalletRefund * refShare));
+              }
+            }
+
+            // Handle Cash Wallet Refund
+            if (paidByWallet > 0) {
+              if (walletUsed > 0) {
+                await knex("users")
+                  .where("id", userId)
+                  .update({
+                    wallet_balance: Number(user.wallet_balance || 0) + walletUsed
+                  });
+
+                const nextWId = await getNextWalletHistoryWId();
+                await knex("wallet_history").insert({
+                  w_id: nextWId,
+                  user_id: userId,
+                  amount: walletUsed.toFixed(2),
+                  resource: "order_refund_cancelled",
+                  type: "Add",
+                  group_id: groupID,
+                  cart_id: cartID,
+                });
+              }
+            }
+
+            // Handle Referral Wallet Refund
+            if (paidByRefWallet > 0) {
+              if (refUsed > 0) {
+                const lastTxn = await knex("wallet_history")
+                  .where("user_id", userId)
+                  .where("group_id", groupID)
+                  .where("type", "deduction")
+                  .where("resource", "order_placed_wallet_ref")
+                  .orderBy("w_id", "desc")
+                  .first();
+
+                let walletType = "Add";
+                const dubaiTime = moment.tz("Asia/Dubai");
+                const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+                if (
+                  lastTxn &&
+                  lastTxn.expiry_date &&
+                  moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+                ) {
+                  walletType = "wallet_expired";
+                }
+
+                if (walletType == 'Add') {
+                  await knex("users")
+                    .where("id", userId)
+                    .update({
+                      referral_balance: Number(user.referral_balance || 0) + refUsed
+                    });
+                }
+
+                const nextWId = await getNextWalletHistoryWId();
+                await knex("wallet_history").insert({
+                  w_id: nextWId,
+                  user_id: userId,
+                  amount: refUsed.toFixed(2),
+                  resource: "order_refund_cancelled_ref",
+                  type: walletType,
+                  group_id: groupID,
+                  cart_id: cartID,
+                  expiry_date: lastTxn ? lastTxn.expiry_date : null
+                });
+              }
+            }
+          }
+
+        } else {
+          const storeDetailsAmt = await knex('orders')
+            .where('group_id', groupID)
+            .select(
+              knex.raw("COALESCE(SUM(NULLIF(trim(orders.cod_charges), '')::numeric), 0) as \"codCharges\""),
+              knex.raw("COALESCE(SUM(NULLIF(trim(orders.del_partner_tip), '')::numeric), 0) as \"delPartnerTip\""),
+              knex.raw('COALESCE(SUM(orders.paid_by_wallet), 0) as paid_by_wallet')
+            )
+            .first();
+
+          const totalPrice = parseFloat(storeOrderDetails?.price ?? 0);
+          const totalMRP = parseFloat(storeOrderDetails?.total_mrp ?? 0);
+          const codCharges = parseFloat(storeDetailsAmt?.codCharges ?? 0);
+          const delPartnerTip = parseFloat(storeDetailsAmt?.delPartnerTip ?? 0);
+          const paidByWallet = parseFloat(storeDetailsAmt?.paid_by_wallet ?? 0);
+          const paidByRefWallet = parseFloat(storeDetailsAmt?.paid_by_ref_wallet ?? 0);
+
+          let couponDiscount = 0;
+          let couponDiscounts = 0;
+          if (couponCode) {
+            const couponDetails = await knex('coupon')
+              .where('coupon_code', couponCode)
+              .select('*')
+              .first();
+            const itemMrp = await knex('store_products')
+              .where('varient_id', storeOrderDetails.varient_id)
+              .select('mrp')
+              .first();
+            const itemQty = parseFloat(storeOrderDetails?.qty ?? 0);
+            const unitPrice = itemQty > 0 ? (parseFloat(totalPrice) / itemQty) : 0;
+            couponDiscount = (itemQty > 0 && unitPrice >= parseFloat(itemMrp?.mrp ?? 0))
+              ? ((totalPrice * couponDetails.amount) / 100)
+              : 0;
+            couponDiscounts = (parseFloat(CouponDis?.total_price ?? 0) > 0) ? ((parseFloat(CouponDis?.total_price ?? 0) * couponDetails.amount) / 100) : 0;
+          }
+
+          const TotalPriceOrders = ((parseFloat(TotalpriceStore) - couponDiscounts) + codCharges + delPartnerTip);
+          const WalletDiscount = parseFloat(TotalPriceOrders) * 50 / 100;
+
+          WalletAddtoUserAccount = paidByRefWallet > WalletDiscount ? paidByRefWallet - WalletDiscount : 0;
+          const WalletUseOrder = WalletAddtoUserAccount == 0 && paidByRefWallet ? paidByRefWallet : paidByRefWallet - WalletDiscount;
+          cashWalletAddtoUserAccount = paidByWallet;
+
+          const codorderamt = codCharges ? (totalPrice * codCharges / TotalpriceStore) : 0;
+          const delPartnerTipAmt = delPartnerTip ? (totalPrice * delPartnerTip / TotalpriceStore) : 0;
+          const totalPriceAmt = (parseFloat(totalPrice) - parseFloat(couponDiscount)) + parseFloat(codorderamt) + parseFloat(delPartnerTipAmt);
+
+          let cashWallet = 0;
+          let refWallet = 0;
+
+          if (paidByWallet > 0) {
+            const walletRef = await knex('wallet_history')
+              .where({
+                cart_id: cartID,
+                type: 'deduction',
+                resource: 'order_placed_wallet'
+              })
+              .select(
+                knex.raw(
+                  'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used'
+                )
+              )
+              .first();
+            cashWallet = (walletRef?.total_wallet_used || 0);
+          }
+          if (paidByRefWallet > 0) {
+            const walletRef = await knex('wallet_history')
+              .where({
+                cart_id: cartID,
+                type: 'deduction',
+                resource: 'order_placed_wallet_ref'
+              })
+              .select(
+                knex.raw(
+                  'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used_ref'
+                )
+              )
+              .first();
+            refWallet = (walletRef?.total_wallet_used_ref || 0);
+          }
+
+          await knex('orders').where('cart_id', cartID).update({
+            'total_price': parseFloat(totalPriceAmt).toFixed(2),
+            'price_without_delivery': parseFloat(totalPriceAmt).toFixed(2),
+            'total_products_mrp': parseFloat(totalPriceAmt).toFixed(2),
+            'rem_price': 0,
+            'coupon_discount': parseFloat(couponDiscount).toFixed(2),
+            'cod_charges': parseFloat(codorderamt).toFixed(2),
+            'del_partner_tip': parseFloat(delPartnerTipAmt).toFixed(2),
+          });
+
+
+        }
+
+
+
+
+      }
+
+    }
+
+    const result = await knex('orders')
+      .where('group_id', groupID)
+      .where('order_status', 'Cancelled')
+      .count({ cancelled_count: 'order_id' });
+
+    const cancelledCount = parseInt(result[0]?.cancelled_count ?? 0, 10);
+
+    const resultAll = await knex('orders')
+      .where('group_id', groupID)
+      .count({ all_count: 'order_id' });
+
+    const allCount = parseInt(resultAll[0]?.all_count ?? 0, 10);
+
+    if (autoCancelledOfferCartIds.length > 0) {
+      const additionalRefundRow = await knex('orders')
+        .whereIn('cart_id', autoCancelledOfferCartIds)
+        .select(
+          knex.raw("COALESCE(SUM(CASE WHEN orders.payment_method != 'COD' AND orders.payment_status = 'success' THEN GREATEST((orders.total_price::numeric - COALESCE(orders.paid_by_wallet, 0)::numeric - COALESCE(orders.paid_by_ref_wallet, 0)::numeric), 0) ELSE 0 END), 0) as card_paid")
+        )
+        .first();
+      const additionalCardRefund = Number(additionalRefundRow?.card_paid || 0);
+      console.log('[cancelledquickorderprod][offer-auto-cancel-refund-calc]', {
+        group_id: groupID,
+        requested_cart_id: cart_id,
+        auto_cancelled_offer_cart_ids: autoCancelledOfferCartIds,
+        additional_card_paid: Number(additionalRefundRow?.card_paid || 0).toFixed(2),
+        additional_card_refund_used: Number(additionalCardRefund || 0).toFixed(2),
+        base_cancelled_card_refund_before_addition: Number(cancelledCardRefund || 0).toFixed(2),
+      });
+      cancelledCardRefund += additionalCardRefund;
+    }
+
+    // Prevent refunding delivery tip on partial cancellation:
+    // only full-order cancellation should refund tip.
+    if (cancelledCount !== allCount && cancelledCardRefund > 0) {
+      const cancelledTipRow = await knex('orders')
+        .where('cart_id', cart_id)
+        .select(
+          knex.raw("COALESCE(SUM(NULLIF(trim(orders.del_partner_tip), '')::numeric), 0) as \"delPartnerTip\"")
+        )
+        .first();
+
+      const cancelledTipAmount = Number(cancelledTipRow?.delPartnerTip || 0);
+      if (cancelledTipAmount > 0) {
+        // If wallet/ref-wallet + card split happened, wallet/ref-wallet branch already excluded
+        // the tip share from its refunds. So for the CARD refund we only exclude the remaining
+        // tip that wasn't excluded by wallet/ref-wallet.
+        const isWalletCardSplit = (paidByWallet > 0 || paidByRefWallet > 0);
+        if (isWalletCardSplit) {
+          const walletUsedRow = await knex('wallet_history')
+            .where({
+              cart_id: cart_id,
+              type: 'deduction',
+              resource: 'order_placed_wallet',
+            })
+            .select(knex.raw(
+              'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used'
+            ))
+            .first();
+
+          const refUsedRow = await knex('wallet_history')
+            .where({
+              cart_id: cart_id,
+              type: 'deduction',
+              resource: 'order_placed_wallet_ref',
+            })
+            .select(knex.raw(
+              'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used_ref'
+            ))
+            .first();
+
+          const walletUsedRaw = Number(walletUsedRow?.total_wallet_used || 0);
+          const refUsedRaw = Number(refUsedRow?.total_wallet_used_ref || 0);
+          const totalWalletRefundRaw = Math.max(0, walletUsedRaw + refUsedRaw);
+
+          // Remaining tip to exclude from CARD refund.
+          // If wallet/ref-wallet refunds had enough money, remaining tip becomes 0.
+          const tipToExcludeFromCard = Math.max(0, cancelledTipAmount - totalWalletRefundRaw);
+          cancelledCardRefund = Math.max(0, cancelledCardRefund - tipToExcludeFromCard);
+        } else {
+          cancelledCardRefund = Math.max(0, cancelledCardRefund - cancelledTipAmount);
+        }
+      }
+    }
+    if (cancelledCardRefund <= minCardRefundThreshold) {
+      cancelledCardRefund = 0;
+    }
+
+    // Only refund wallet here for COD; Wallet payment is already refunded in the loop (CARD branch)
+    if (storeDetailsAmtAll.payment_method == "COD") {
+
+      const user = await knex("users")
+        .select("user_phone", "wallet", "wallet_balance", "referral_balance")
+        .where("id", userId)
+        .first();
+
+      if (paidByWallet > 0) {
+        const walletRef = await knex('wallet_history')
+          .where({
+            cart_id: cart_id,
+            type: 'deduction',
+            resource: 'order_placed_wallet'
+          })
+          .select(
+            knex.raw(
+              'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used'
+            )
+          )
+          .first();
+
+        const walletUsed = Number(walletRef?.total_wallet_used || 0);
+
+        if (walletUsed > 0) {
+          await knex("users")
+            .where("id", userId)
+            .update({
+              wallet_balance: Number(user.wallet_balance || 0) + walletUsed
+            });
+
+          const nextWId = await getNextWalletHistoryWId();
+          await knex("wallet_history").insert({
+            w_id: nextWId,
+            user_id: userId,
+            amount: walletUsed.toFixed(2),
+            resource: "order_refund_cancelled",
+            type: "Add",
+            group_id: groupID,
+            cart_id: cart_id,
+          });
+        }
+      }
+
+      if (paidByRefWallet > 0) {
+        const walletRef = await knex('wallet_history')
+          .where({
+            cart_id: cart_id,
+            type: 'deduction',
+            resource: 'order_placed_wallet_ref'
+          })
+          .select(
+            knex.raw(
+              'COALESCE(SUM(NULLIF(trim(amount), \'\')::numeric), 0) as total_wallet_used_ref'
+            )
+          )
+          .first();
+
+        const refUsed = Number(walletRef?.total_wallet_used_ref || 0);
+
+        if (refUsed > 0) {
+          const lastTxn = await knex("wallet_history")
+            .where("user_id", userId)
+            .where("group_id", groupID)
+            .where("type", "deduction")
+            .where("resource", "order_placed_wallet_ref")
+            .orderBy("w_id", "desc")
+            .first();
+
+          let walletType = "Add";
+          const dubaiTime = moment.tz("Asia/Dubai");
+          const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+          if (
+            lastTxn &&
+            lastTxn.expiry_date &&
+            moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+          ) {
+            walletType = "wallet_expired";
+          }
+
+          if (walletType == 'Add') {
+            await knex("users")
+              .where("id", userId)
+              .update({
+                referral_balance: Number(user.referral_balance || 0) + refUsed
+              });
+          }
+
+          const nextWId = await getNextWalletHistoryWId();
+          await knex("wallet_history").insert({
+            w_id: nextWId,
+            user_id: userId,
+            amount: refUsed.toFixed(2),
+            resource: "order_refund_cancelled_ref",
+            type: walletType,
+            group_id: groupID,
+            cart_id: cart_id,
+            expiry_date: lastTxn ? lastTxn.expiry_date : null
+          });
+        }
+      }
+    }
+
+    if (cancelledCardRefund > 0) {
+      console.log('[cancelledquickorderprod][final-card-refund-before-wallet-credit]', {
+        group_id: groupID,
+        requested_cart_id: cart_id,
+        cancelled_count: cancelledCount,
+        total_count: allCount,
+        auto_cancelled_offer_cart_ids: autoCancelledOfferCartIds,
+        final_cancelled_card_refund: Number(cancelledCardRefund || 0).toFixed(2),
+      });
+
+      const totalWalletPaidForGroup = (paidByWallet || 0) + (paidByRefWallet || 0);
+      const groupPaymentMethod = (storeDetailsAmtAll.payment_method || '').toString().toLowerCase();
+      const isWalletOnlyGroup =
+        totalWalletPaidForGroup > 0 &&
+        groupPaymentMethod.includes('wallet') &&
+        !groupPaymentMethod.includes('card');
+
+      // Case 1: Pure wallet orders (cash + ref, no real card payment method).
+      // Any remaining refund here (including reserved delivery tip) should be
+      // split proportionally between cash wallet and referral wallet.
+      if (isWalletOnlyGroup) {
+        const cashShare = (paidByWallet || 0) / totalWalletPaidForGroup;
+        const refShare = (paidByRefWallet || 0) / totalWalletPaidForGroup;
+
+        const extraCashRefund = Number((cancelledCardRefund * cashShare).toFixed(2));
+        const extraRefRefund = Number((cancelledCardRefund - extraCashRefund).toFixed(2));
+
+        if (extraCashRefund > 0) {
+          const userCashRow = await knex("users")
+            .select("wallet_balance")
+            .where("id", userId)
+            .first();
+
+          await knex("users")
+            .where("id", userId)
+            .update({
+              wallet_balance: Number(userCashRow?.wallet_balance || 0) + extraCashRefund
+            });
+
+          const nextWIdCash = await getNextWalletHistoryWId();
+          await knex("wallet_history").insert({
+            w_id: nextWIdCash,
+            user_id: userId,
+            amount: extraCashRefund.toFixed(2),
+            resource: "order_refund_cancelled",
+            type: "Add",
+            group_id: groupID,
+            cart_id: cart_id,
+          });
+        }
+
+        if (extraRefRefund > 0) {
+          const userRefRow = await knex("users")
+            .select("referral_balance")
+            .where("id", userId)
+            .first();
+
+          await knex("users")
+            .where("id", userId)
+            .update({
+              referral_balance: Number(userRefRow?.referral_balance || 0) + extraRefRefund
+            });
+
+          const lastTxn = await knex("wallet_history")
+            .where("user_id", userId)
+            .where("group_id", groupID)
+            .where("type", "deduction")
+            .where("resource", "order_placed_wallet_ref")
+            .orderBy("w_id", "desc")
+            .first();
+
+          let walletType = "Add";
+          const dubaiTime = moment.tz("Asia/Dubai");
+          const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+          if (
+            lastTxn &&
+            lastTxn.expiry_date &&
+            moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+          ) {
+            walletType = "wallet_expired";
+          }
+
+          const nextWIdRef = await getNextWalletHistoryWId();
+          await knex("wallet_history").insert({
+            w_id: nextWIdRef,
+            user_id: userId,
+            amount: extraRefRefund.toFixed(2),
+            resource: "order_refund_cancelled_ref",
+            type: walletType,
+            group_id: groupID,
+            cart_id: cart_id,
+            expiry_date: lastTxn ? lastTxn.expiry_date : null
+          });
+        }
+      } else {
+        // Case 2: Card-based orders (wallet + card or pure card).
+        // cancelledCardRefund is computed as (line total - paid_by_wallet - paid_by_ref_wallet).
+        // On the LAST cancel (entire group cancelled), tip / remainder can sit in that "card"
+        // bucket while referral (or cash-wallet) ledger for the group is not yet square — then
+        // we re-route from cancelledCardRefund using wallet_history totals.
+        //
+        // IMPORTANT: Do NOT run that ledger split on PARTIAL cancels. refDeductions are for the
+        // whole group while cancelledCardRefund is only this line's card bucket; refRemaining would
+        // be ~full referral paid and would incorrectly absorb almost all of the card refund into
+        // referral (on top of the per-cart loop's referral refund).
+        const userForCardRefund = await knex("users")
+          .select("wallet_balance", "referral_balance")
+          .where("id", userId)
+          .first();
+
+        const isFullGroupCancel = cancelledCount === allCount;
+
+        if (isFullGroupCancel && cancelledCardRefund > 0) {
+          const roundMoney2 = (v) => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) return 0;
+            return Number(n.toFixed(2));
+          };
+
+          const sumWalletHistoryAmount = async (whereBuilder) => {
+            const row = await knex("wallet_history")
+              .where("user_id", userId)
+              .where("group_id", groupID)
+              .modify(whereBuilder)
+              .select(
+                knex.raw(
+                  "COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_amt"
+                )
+              )
+              .first();
+            return Number(row?.total_amt || 0);
+          };
+
+          const refDedTotal = await sumWalletHistoryAmount((qb) => {
+            qb.where("type", "deduction").where("resource", "order_placed_wallet_ref");
+          });
+          const refAddTotal = await sumWalletHistoryAmount((qb) => {
+            qb.where("resource", "order_refund_cancelled_ref").where("type", "Add");
+          });
+          const cashDedTotal = await sumWalletHistoryAmount((qb) => {
+            qb.where("type", "deduction").where("resource", "order_placed_wallet");
+          });
+          const cashAddTotal = await sumWalletHistoryAmount((qb) => {
+            qb.where("resource", "order_refund_cancelled").where("type", "Add");
+          });
+
+          const refRemaining = roundMoney2(Math.max(0, refDedTotal - refAddTotal));
+          const cashRemaining = roundMoney2(Math.max(0, cashDedTotal - cashAddTotal));
+
+          let routeToRef = roundMoney2(Math.min(cancelledCardRefund, refRemaining));
+          let leftAfterRef = roundMoney2(cancelledCardRefund - routeToRef);
+          let routeToCashWallet = roundMoney2(Math.min(leftAfterRef, cashRemaining));
+          let routeToCard = roundMoney2(leftAfterRef - routeToCashWallet);
+
+          const splitSum = roundMoney2(routeToRef + routeToCashWallet + routeToCard);
+          if (splitSum !== roundMoney2(cancelledCardRefund)) {
+            routeToCard = roundMoney2(
+              roundMoney2(cancelledCardRefund) - routeToRef - routeToCashWallet
+            );
+          }
+
+          console.log("[cancelledquickorderprod][case2-card-refund-split]", {
+            group_id: groupID,
+            requested_cart_id: cart_id,
+            full_group_cancel: true,
+            cancelledCardRefund: roundMoney2(cancelledCardRefund),
+            refDedTotal,
+            refAddTotal,
+            refRemaining,
+            cashDedTotal,
+            cashAddTotal,
+            cashRemaining,
+            routeToRef,
+            routeToCashWallet,
+            routeToCard,
+          });
+
+          let nextWalletBal = Number(userForCardRefund?.wallet_balance || 0);
+          let nextRefBal = Number(userForCardRefund?.referral_balance || 0);
+
+          if (routeToRef > 0) {
+            const lastTxn = await knex("wallet_history")
+              .where("user_id", userId)
+              .where("group_id", groupID)
+              .where("type", "deduction")
+              .where("resource", "order_placed_wallet_ref")
+              .orderBy("w_id", "desc")
+              .first();
+
+            let walletType = "Add";
+            const dubaiTime = moment.tz("Asia/Dubai");
+            const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+            if (
+              lastTxn &&
+              lastTxn.expiry_date &&
+              moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+            ) {
+              walletType = "wallet_expired";
+            }
+
+            if (walletType === "Add") {
+              nextRefBal += routeToRef;
+            }
+
+            const nextWIdRef = await getNextWalletHistoryWId();
+            await knex("wallet_history").insert({
+              w_id: nextWIdRef,
+              user_id: userId,
+              amount: routeToRef.toFixed(2),
+              resource: "order_refund_cancelled_ref",
+              type: walletType,
+              group_id: groupID,
+              cart_id: cart_id,
+              expiry_date: lastTxn ? lastTxn.expiry_date : null,
+            });
+          }
+
+          if (routeToCashWallet > 0) {
+            nextWalletBal += routeToCashWallet;
+            const nextWIdCash = await getNextWalletHistoryWId();
+            await knex("wallet_history").insert({
+              w_id: nextWIdCash,
+              user_id: userId,
+              amount: routeToCashWallet.toFixed(2),
+              resource: "order_refund_cancelled",
+              type: "Add",
+              group_id: groupID,
+              cart_id: cart_id,
+            });
+          }
+
+          if (routeToCard > 0) {
+            nextWalletBal += routeToCard;
+            const nextWId = await getNextWalletHistoryWId();
+            await knex("wallet_history").insert({
+              w_id: nextWId,
+              user_id: userId,
+              amount: routeToCard.toFixed(2),
+              resource: "order_refund_cancelled_card_to_wallet",
+              type: "Add",
+              group_id: groupID,
+              cart_id: cart_id,
+            });
+          }
+
+          await knex("users")
+            .where("id", userId)
+            .update({
+              wallet_balance: nextWalletBal,
+              referral_balance: nextRefBal,
+            });
+        } else if (cancelledCardRefund > 0) {
+          // Partial cancel (or same): entire card bucket -> cash wallet (original behaviour).
+          await knex("users")
+            .where("id", userId)
+            .update({
+              wallet_balance:
+                Number(userForCardRefund?.wallet_balance || 0) + cancelledCardRefund,
+            });
+
+          const nextWId = await getNextWalletHistoryWId();
+          await knex("wallet_history").insert({
+            w_id: nextWId,
+            user_id: userId,
+            amount: cancelledCardRefund.toFixed(2),
+            resource: "order_refund_cancelled_card_to_wallet",
+            type: "Add",
+            group_id: groupID,
+            cart_id: cart_id,
+          });
+        }
+      }
+    }
+
+    const group_id = groupIdForEmail;
+
+    totalCal = await knex('orders')
+      .where('group_id', group_id)
+      .where('cart_id', cart_id)
+      .sum('total_products_mrp as total_products_mrp');
+    finalAmount = parseFloat(totalCal[0]?.total_products_mrp ?? 0).toFixed(2);
+
+    totalCartAmount = await knex('orders')
+      .where('group_id', group_id)
+      .sum('total_products_mrp as total_products_mrp');
+
+    total_cart_amount = parseFloat(totalCartAmount[0]?.total_products_mrp ?? 0).toFixed(2);
+
+    orderFinalAmount = parseFloat(total_cart_amount) - parseFloat(finalAmount);
+
+    const result1 = await knex('orders')
+      .where('group_id', group_id)
+      .where('order_status', 'Cancelled')
+      .count({ cancelled_count: 'order_id' });
+
+    const cancelledCount1 = parseInt(result1[0]?.cancelled_count ?? 0, 10);
+
+    const resultAll1 = await knex('orders')
+      .where('group_id', group_id)
+      .count({ all_count: 'order_id' });
+
+    const allCount1 = parseInt(resultAll1[0]?.all_count ?? 0, 10);
+
+    const is_addedld = await knex('tbl_luckydraw').where('order_id', group_id).where('is_delete', 0).first();
+
+    // if((is_addedld && orderFinalAmount <= 100) || (is_addedld && orderFinalAmount >= 100 && cancelledCount == allCount)){
+    if (is_addedld && orderFinalAmount <= 100 || (is_addedld && orderFinalAmount > 100 && cancelledCount1 == allCount1)) {
+      if (finalAmount >= 100) {
+        const updateentry = await knex('tbl_luckydraw')
+          .where('order_id', group_id)
+          .update({ 'is_delete': 1 });
+      }
+
+      const usertotalorders = await knex('tbl_luckydraw')
+        .distinct('orders.group_id')
+        .rightJoin('orders', 'orders.group_id', '=', 'tbl_luckydraw.order_id')
+        .where('tbl_luckydraw.user_id', user_id)
+        .where('tbl_luckydraw.is_delete', 0)
+        .where('orders.order_status', '!=', 'Cancelled');
+
+      const getUserup = await knex('users').where('id', user_id).first();
+
+      const apiUrl = 'https://backend.aisensy.com/campaign/t1/api/v2';
+      // Convert OTP code to a time-based string
+      const phone_with_country_code = `${getUserup.country_code}${getUserup.user_phone}`;
+
+      const payload = {
+        "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyYiIsIm5hbWUiOiJRdWlja2FydCBHZW5lcmFsIFRyYWRpbmcgQ28gTExDIiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyNSIsImFjdGl2ZVBsYW4iOiJGUkVFX0ZPUkVWRVIiLCJpYXQiOjE3MzQ0MzQyMzl9.FXBdWtjPyBXl0AONmLnOZa6zuInsaQaa8MtWvOAyZCs",
+        "campaignName": "CancelOrderIphone",
+        "destination": "+" + phone_with_country_code,
+        "userName": "Quickart General Trading Co LLC",
+        "templateParams": [
+          getUserup.name, group_id, finalAmount, `${usertotalorders.length}`
+        ],
+        "source": "new-landing-page form",
+        "media": {},
+        "buttons": [],
+        "carouselCards": [],
+        "location": {},
+        "attributes": {},
+        "paramsFallbackValue": {
+          "FirstName": "user"
+        }
+      };
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      const updateentry = await knex('tbl_luckydraw')
+        .where('order_id', group_id)
+        .update({ 'is_delete': 1 });
+    }
+
+    await knex('orders')
+      .where('group_id', groupID)
+      .where('order_status', 'Cancelled')
+      .update({
+        'del_partner_tip': 0,
+        'coupon_discount': 0,
+        'cod_charges': 0,
+        'reserve_amount': 0,
+        'paid_by_wallet': 0,
+        'paid_by_ref_wallet': 0,
+        'rem_price': 0
+      });
+
+
+  }
+
+
+  //Email Code (groupIdForEmail in scope from function top)
+  if (groupIdForEmail) {
+    storeOrders = await knex('store_orders')
+      .select('store_orders.*', 'orders.group_id', 'orders.time_slot')
+      .join('orders', 'orders.cart_id', '=', 'store_orders.order_cart_id')
+      .where('store_orders.order_cart_id', cart_id)
+
+    // Fetch user for email
+    const user = await knex('users')
+      .select('name', 'email')
+      .where('id', user_id)
+      .first();
+    let userName = user?.name ?? '';
+    let userEmail = user?.email ?? '';
+
+    const group_id = groupIdForEmail;
+
+    const logo = await knex('tbl_web_setting').first();
+    const appName = logo ? logo.name : null;
+    // Fetching the first record from the 'currency' table
+    const currency = await knex('currency').first();
+    const currencySign = currency ? currency.currency_sign : null;
+    const templateData = {
+      baseurl: process.env.BASE_URL,
+      user_name: userName,
+      user_email: userEmail,
+      store_orderss: storeOrders,
+      final_amount: "",
+      app_name: appName,
+      currency_sign: currencySign,
+      cart_id: group_id
+    };
+    const subject = 'Delivery Order Cancelled'
+    // Trigger the email after order is placed
+    //sendCancelledEmail = await cancelorderMail(userEmail, templateData, subject);
+  }
+
+};
 
 
 const getSubresumeorder = async (appDetatils) => {
@@ -1743,7 +2933,7 @@ const getSubresumeorder = async (appDetatils) => {
 };
 
 
-const getCancelquickOrder = async (appDetatils) => {
+const getCancelquickOrder737 = async (appDetatils) => {
   const minCardRefundThreshold = 0.09;
   const user_id = appDetatils.user_id
   // cart_id =appDetatils.cart_id
@@ -2002,6 +3192,445 @@ const getCancelquickOrder = async (appDetatils) => {
           w_id: nextWId,
           user_id: userId,
           amount: paidByRefWallet.toFixed(3),
+          resource: "order_refund_cancelled_ref",
+          type: walletType,
+          group_id: group_id,
+          cart_id: "",
+          expiry_date: lastTxn ? lastTxn.expiry_date : null
+        });
+      }
+    }
+  }
+
+  const is_addedld = await knex('tbl_luckydraw').where('order_id', group_id).where('is_delete', 0).first();
+
+  if (is_addedld) {
+    const usertotalorders = await knex('tbl_luckydraw')
+      .distinct('orders.group_id')
+      .rightJoin('orders', 'orders.group_id', '=', 'tbl_luckydraw.order_id')
+      .where('tbl_luckydraw.user_id', user_id)
+      .where('tbl_luckydraw.is_delete', 0)
+      .where('orders.order_status', '!=', 'Cancelled');
+
+    const getUserup = await knex('users').where('id', user_id).first();
+
+    const apiUrl = 'https://backend.aisensy.com/campaign/t1/api/v2';
+    // Convert OTP code to a time-based string
+    const phone_with_country_code = `${getUserup.country_code}${getUserup.user_phone}`;
+
+    const payload = {
+      "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyYiIsIm5hbWUiOiJRdWlja2FydCBHZW5lcmFsIFRyYWRpbmcgQ28gTExDIiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyNSIsImFjdGl2ZVBsYW4iOiJGUkVFX0ZPUkVWRVIiLCJpYXQiOjE3MzQ0MzQyMzl9.FXBdWtjPyBXl0AONmLnOZa6zuInsaQaa8MtWvOAyZCs",
+      "campaignName": "CancelOrderIphone",
+      "destination": "+" + phone_with_country_code,
+      "userName": "Quickart General Trading Co LLC",
+      "templateParams": [
+        getUserup.name, group_id, finalAmount, `${usertotalorders.length}`
+      ],
+      "source": "new-landing-page form",
+      "media": {},
+      "buttons": [],
+      "carouselCards": [],
+      "location": {},
+      "attributes": {},
+      "paramsFallbackValue": {
+        "FirstName": "user"
+      }
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    const updateentry = await knex('tbl_luckydraw')
+      .where('order_id', group_id)
+      .update({ 'is_delete': 1 });
+  }
+
+  await knex('orders')
+    .where('group_id', groupID)
+    .where('order_status', 'Cancelled')
+    .update({
+      'paid_by_wallet': 0,
+      'paid_by_ref_wallet': 0,
+      'rem_price': 0
+    });
+
+
+  //Email Code
+  storeOrders = await knex('store_orders')
+    .select('store_orders.*', 'orders.group_id', 'orders.time_slot')
+    .join('orders', 'orders.cart_id', '=', 'store_orders.order_cart_id')
+    .where('orders.group_id', group_id)
+
+  // Fetch user for email
+  const user = await knex('users')
+    .select('name', 'email')
+    .where('id', user_id)
+    .first();
+  let userName = user?.name ?? '';
+  let userEmail = user?.email ?? '';
+
+  const logo = await knex('tbl_web_setting').first();
+  const appName = logo ? logo.name : null;
+  // Fetching the first record from the 'currency' table
+  const currency = await knex('currency').first();
+  const currencySign = currency ? currency.currency_sign : null;
+  const templateData = {
+    baseurl: process.env.BASE_URL,
+    user_name: userName,
+    user_email: userEmail,
+    store_orderss: storeOrders,
+    final_amount: "",
+    app_name: appName,
+    currency_sign: currencySign,
+    cart_id: group_id
+  };
+  const subject = 'Delivery Order Cancelled'
+  // Trigger the email after order is placed
+  //sendCancelledEmail = await cancelorderMail(userEmail, templateData, subject);
+
+
+
+};
+
+const getCancelquickOrder = async (appDetatils) => {
+  const minCardRefundThreshold = 0.09;
+  const user_id = appDetatils.user_id
+  // cart_id =appDetatils.cart_id
+  const group_id = appDetatils.group_id
+  const cancel_reason = appDetatils.cancel_reason;
+  const groupID = appDetatils.group_id
+
+  if (!group_id || !user_id) {
+    throw new Error('group_id and user_id are required.');
+  }
+
+  // Check if there are any orders that are not already cancelled (single round-trip)
+  const existingOrders = await knex('orders')
+    .where('group_id', group_id)
+    .whereNot('order_status', 'Cancelled')
+    .pluck('order_id');
+
+  if (existingOrders.length === 0) {
+    throw new Error('All orders are already cancelled.');
+  }
+
+  // Pending-order aggregates for refund (PG: non-aggregated columns must use aggregate)
+  const orderDetails = await knex('orders')
+    .where('group_id', group_id)
+    .where('order_status', 'Pending')
+    .select(
+      knex.raw('COALESCE(SUM(orders.total_products_mrp), 0) as total_products_mrp'),
+      knex.raw("COALESCE(SUM(CASE WHEN orders.payment_method != 'COD' AND orders.payment_status = 'success' THEN GREATEST((orders.total_price::numeric - COALESCE(orders.paid_by_wallet, 0)::numeric - COALESCE(orders.paid_by_ref_wallet, 0)::numeric), 0) ELSE 0 END), 0) as card_paid"),
+      knex.raw('COALESCE(SUM(orders.paid_by_wallet), 0) as paid_by_wallet'),
+      knex.raw('COALESCE(SUM(orders.paid_by_ref_wallet), 0) as paid_by_ref_wallet'),
+      knex.raw('MAX(orders.payment_method) as payment_method'),
+      knex.raw('MAX(orders.user_id) as user_id')
+    )
+    .first();
+
+  if (!orderDetails || (orderDetails.user_id == null && orderDetails.payment_method == null)) {
+    throw new Error('No pending orders to cancel.');
+  }
+
+  const paymentMethod = orderDetails.payment_method;
+  const userId = orderDetails.user_id;
+  const totalProductsMrp = parseFloat(orderDetails.total_products_mrp ?? 0);
+  const refundTo3dp = (v) => {
+    const n = parseFloat(v ?? 0);
+    if (!Number.isFinite(n)) return 0;
+    return parseFloat(n.toFixed(3));
+  };
+  const paidByWallet = refundTo3dp(orderDetails.paid_by_wallet);
+  const paidByRefWallet = refundTo3dp(orderDetails.paid_by_ref_wallet);
+  let paidByCard = refundTo3dp(orderDetails.card_paid);
+  if (paidByCard <= minCardRefundThreshold) {
+    paidByCard = 0;
+  }
+  const sumGroupWalletHistoryAmount = async (whereBuilder) => {
+    const row = await knex("wallet_history")
+      .where("user_id", userId)
+      .where("group_id", group_id)
+      .modify(whereBuilder)
+      .select(
+        knex.raw(
+          "COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_amt"
+        )
+      )
+      .first();
+    return Number(row?.total_amt || 0);
+  };
+
+  let routeCardToRef = 0;
+  let routeCardToCashWallet = 0;
+  let routeCardToCardWallet = paidByCard;
+  if (paidByCard > 0) {
+    const refDedTotal = await sumGroupWalletHistoryAmount((qb) => {
+      qb.where("type", "deduction").where("resource", "order_placed_wallet_ref");
+    });
+    const refAddTotal = await sumGroupWalletHistoryAmount((qb) => {
+      qb.where("resource", "order_refund_cancelled_ref").where("type", "Add");
+    });
+    const cashDedTotal = await sumGroupWalletHistoryAmount((qb) => {
+      qb.where("type", "deduction").where("resource", "order_placed_wallet");
+    });
+    const cashAddTotal = await sumGroupWalletHistoryAmount((qb) => {
+      qb.where("resource", "order_refund_cancelled").where("type", "Add");
+    });
+
+    const refRemainingAfterDirect = Math.max(
+      0,
+      refundTo3dp(refDedTotal - refAddTotal - paidByRefWallet)
+    );
+    const cashRemainingAfterDirect = Math.max(
+      0,
+      refundTo3dp(cashDedTotal - cashAddTotal - paidByWallet)
+    );
+
+    routeCardToRef = refundTo3dp(Math.min(paidByCard, refRemainingAfterDirect));
+    let leftAfterRef = refundTo3dp(paidByCard - routeCardToRef);
+    routeCardToCashWallet = refundTo3dp(
+      Math.min(leftAfterRef, cashRemainingAfterDirect)
+    );
+    routeCardToCardWallet = refundTo3dp(leftAfterRef - routeCardToCashWallet);
+
+    const splitTotal = refundTo3dp(
+      routeCardToRef + routeCardToCashWallet + routeCardToCardWallet
+    );
+    if (splitTotal !== paidByCard) {
+      routeCardToCardWallet = refundTo3dp(
+        paidByCard - routeCardToRef - routeCardToCashWallet
+      );
+    }
+
+    console.log("[cancelledquickorder][card-refund-routing]", {
+      group_id,
+      paidByWallet,
+      paidByRefWallet,
+      paidByCard,
+      refDedTotal,
+      refAddTotal,
+      cashDedTotal,
+      cashAddTotal,
+      refRemainingAfterDirect,
+      cashRemainingAfterDirect,
+      routeCardToRef,
+      routeCardToCashWallet,
+      routeCardToCardWallet,
+    });
+  }
+
+  // Single aggregate query for totals (PG: cast text columns to numeric)
+  const totalCal = await knex('orders')
+    .where('group_id', group_id)
+    .select(
+      knex.raw('COALESCE(SUM(orders.coupon_discount), 0) as coupon_discount'),
+      knex.raw('COALESCE(SUM(orders.rem_price), 0) as rem_price'),
+      knex.raw('COALESCE(SUM(orders.paid_by_wallet), 0) as paid_by_wallet'),
+      knex.raw('COALESCE(SUM(orders.paid_by_ref_wallet), 0) as paid_by_ref_wallet'),
+      knex.raw("COALESCE(SUM(NULLIF(trim(orders.cod_charges), '')::numeric), 0) as cod_charges"),
+      knex.raw("COALESCE(SUM(NULLIF(trim(orders.del_partner_tip), '')::numeric), 0) as del_partner_tip"),
+      knex.raw('COALESCE(SUM(orders.total_products_mrp), 0) as total_products_mrp')
+    )
+    .first();
+  const finalAmount = parseFloat(totalCal?.total_products_mrp ?? 0).toFixed(2);
+
+
+
+
+  order_data = await knex('orders')
+    .where('group_id', group_id)
+    .pluck('order_id');
+
+  subcription_data = await knex('subscription_order')
+    .whereIn('order_id', order_data)
+    .where('order_status', 'Pending')
+    .update({
+      'cancel_reason': cancel_reason,
+      'order_status': "Cancelled"
+    });
+
+  order_data = await knex('orders')
+    .where('group_id', group_id)
+    .where('order_status', 'Pending')
+    .update({
+      'order_status': "Cancelled",
+      'cancelling_reason': cancel_reason,
+      'paid_by_wallet': 0,
+      'paid_by_ref_wallet': 0
+    });
+
+
+  // return paymentMethod;
+  if (paymentMethod != 'COD') {
+    const user = await knex('users')
+      .select('user_phone', 'wallet', 'wallet_balance', 'referral_balance')
+      .where('id', userId)
+      .first();
+
+    const totalCashWalletRefund = refundTo3dp(paidByWallet + routeCardToCashWallet);
+    const totalRefRefund = refundTo3dp(paidByRefWallet + routeCardToRef);
+
+    if (totalCashWalletRefund > 0 || routeCardToCardWallet > 0) {
+      const actualCashWallet = Number(user.wallet_balance || 0) + totalCashWalletRefund + routeCardToCardWallet;
+      await knex('users')
+        .where('id', userId)
+        .update({ 'wallet_balance': actualCashWallet });
+    }
+
+    if (totalCashWalletRefund > 0) {
+      const nextWId = await getNextWalletHistoryWId();
+      await knex('wallet_history').insert({
+        w_id: nextWId,
+        user_id: userId,
+        amount: totalCashWalletRefund.toFixed(3),
+        resource: 'order_refund_cancelled',
+        type: 'Add',
+        group_id: group_id,
+        cart_id: ''
+      });
+    }
+
+    if (routeCardToCardWallet > 0) {
+      const nextWId = await getNextWalletHistoryWId();
+      await knex('wallet_history').insert({
+        w_id: nextWId,
+        user_id: userId,
+        amount: routeCardToCardWallet.toFixed(3),
+        resource: 'order_refund_cancelled_card_to_wallet',
+        type: 'Add',
+        group_id: group_id,
+        cart_id: ''
+      });
+    }
+
+    if (totalRefRefund > 0) {
+      const lastTxn = await knex("wallet_history")
+        .where("user_id", userId)
+        .where("group_id", group_id)
+        .where("type", "deduction")
+        .where("resource", "order_placed_wallet_ref")
+        .orderBy("w_id", "desc")
+        .first();
+
+      let walletType = "Add";
+      const dubaiTime = moment.tz("Asia/Dubai");
+      const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+      if (
+        lastTxn &&
+        lastTxn.expiry_date &&
+        moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+      ) {
+        walletType = "wallet_expired";
+      }
+
+      if (walletType === "Add") {
+        const actualRefWallet = Number(user.referral_balance || 0) + totalRefRefund;
+        await knex("users")
+          .where("id", userId)
+          .update({
+            referral_balance: actualRefWallet
+          });
+      }
+
+      const nextWId = await getNextWalletHistoryWId();
+      await knex("wallet_history").insert({
+        w_id: nextWId,
+        user_id: userId,
+        amount: totalRefRefund.toFixed(3),
+        resource: "order_refund_cancelled_ref",
+        type: walletType,
+        group_id: group_id,
+        cart_id: "",
+        expiry_date: lastTxn ? lastTxn.expiry_date : null
+      });
+    }
+  }
+  else {
+    if (paidByWallet > 0 || paidByRefWallet > 0 || paidByCard > 0) {
+      const user = await knex('users')
+        .select('user_phone', 'wallet', 'wallet_balance', 'referral_balance')
+        .where('id', userId)
+        .first();
+
+      const totalCashWalletRefund = refundTo3dp(paidByWallet + routeCardToCashWallet);
+      const totalRefRefund = refundTo3dp(paidByRefWallet + routeCardToRef);
+
+      if (totalCashWalletRefund > 0 || routeCardToCardWallet > 0) {
+        let actualCashWallet = Number(user.wallet_balance || 0) + totalCashWalletRefund + routeCardToCardWallet;
+        await knex('users')
+          .where('id', userId)
+          .update({ 'wallet_balance': actualCashWallet });
+      }
+
+      if (totalCashWalletRefund > 0) {
+        const nextWId = await getNextWalletHistoryWId();
+        await knex('wallet_history').insert({
+          w_id: nextWId,
+          user_id: userId,
+          amount: totalCashWalletRefund.toFixed(3),
+          resource: 'order_refund_cancelled',
+          type: 'Add',
+          group_id: group_id,
+          cart_id: ''
+        });
+      }
+
+      if (routeCardToCardWallet > 0) {
+        const nextWId = await getNextWalletHistoryWId();
+        await knex('wallet_history').insert({
+          w_id: nextWId,
+          user_id: userId,
+          amount: routeCardToCardWallet.toFixed(3),
+          resource: 'order_refund_cancelled_card_to_wallet',
+          type: 'Add',
+          group_id: group_id,
+          cart_id: ''
+        });
+      }
+
+      if (totalRefRefund > 0) {
+        const lastTxn = await knex("wallet_history")
+          .where("user_id", userId)
+          .where("group_id", group_id)
+          .where("type", "deduction")
+          .where("resource", "order_placed_wallet_ref")
+          .orderBy("w_id", "desc")
+          .first();
+
+        let walletType = "Add";
+        const dubaiTime = moment.tz("Asia/Dubai");
+        const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+        if (
+          lastTxn &&
+          lastTxn.expiry_date &&
+          moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+        ) {
+          walletType = "wallet_expired";
+        }
+
+        if (walletType === "Add") {
+          let actualRefWallet = Number(user.referral_balance || 0) + totalRefRefund;
+          await knex("users")
+            .where("id", userId)
+            .update({
+              referral_balance: actualRefWallet
+            });
+        }
+
+        const nextWId = await getNextWalletHistoryWId();
+        await knex("wallet_history").insert({
+          w_id: nextWId,
+          user_id: userId,
+          amount: totalRefRefund.toFixed(3),
           resource: "order_refund_cancelled_ref",
           type: walletType,
           group_id: group_id,
@@ -2968,7 +4597,7 @@ const getSubpauseorder = async (appDetatils) => {
   //sendPausedEmail = await pauseorderMail(userEmail, templateData, subject);
 };
 
-const getCancelprdOrder = async (appDetatils) => {
+const getCancelprdOrder737 = async (appDetatils) => {
   const minCardRefundThreshold = 0.09;
   let userId = appDetatils.user_id
   cart_id = appDetatils.cart_id
@@ -3270,6 +4899,482 @@ const getCancelprdOrder = async (appDetatils) => {
       'paid_by_ref_wallet': parseFloat(remainingRefWallet.toFixed(2)),
       'rem_price': parseFloat(Math.max(0, remainingCard).toFixed(2))
     });
+
+  //Email Code
+  storeOrders = await knex('store_orders')
+    .select('store_orders.*', 'orders.group_id', 'orders.time_slot')
+    .join('orders', 'orders.cart_id', '=', 'store_orders.order_cart_id')
+    .where('store_orders.order_cart_id', cart_id)
+
+  let userName = user.name;
+  let userEmail = user.email;
+
+  const logo = await knex('tbl_web_setting').first();
+  const appName = logo ? logo.name : null;
+  // Fetching the first record from the 'currency' table
+  const currency = await knex('currency').first();
+  const currencySign = currency ? currency.currency_sign : null;
+
+  const orderlist = await knex('orders')
+    .where('cart_id', cart_id)
+    .select('group_id')
+    .first();
+
+  const group_id = orderlist.group_id;
+
+  totalCal = await knex('orders')
+    .where('group_id', group_id)
+    .where('cart_id', cart_id)
+    .sum('total_products_mrp as total_products_mrp');
+  finalAmount = parseFloat(totalCal[0].total_products_mrp).toFixed(2);
+
+  totalCartAmount = await knex('orders')
+    .where('group_id', group_id)
+    .sum('total_products_mrp as total_products_mrp');
+  total_cart_amount = parseFloat(totalCartAmount[0].total_products_mrp).toFixed(2);
+
+  orderFinalAmount = total_cart_amount - finalAmount;
+
+
+  const result1 = await knex('orders')
+    .where('group_id', group_id)
+    .where('order_status', 'Cancelled')
+    .count({ cancelled_count: 'order_id' });
+
+  const cancelledCount1 = result1[0].cancelled_count;
+
+  const resultAll1 = await knex('orders')
+    .where('group_id', group_id)
+    .count({ all_count: 'order_id' });
+
+  const allCount1 = resultAll1[0].all_count;
+
+  const is_addedld = await knex('tbl_luckydraw').where('order_id', group_id).where('is_delete', 0).first();
+
+  // && cancelledCount == allCount
+  if (is_addedld && orderFinalAmount < 200 || (is_addedld && orderFinalAmount > 200 && cancelledCount1 == allCount1)) {
+    if (finalAmount >= 200) {
+      const updateentry = await knex('tbl_luckydraw')
+        .where('order_id', group_id)
+        .update({ 'is_delete': 1 });
+    }
+
+    const usertotalorders = await knex('tbl_luckydraw')
+      .distinct('orders.group_id')
+      .rightJoin('orders', 'orders.group_id', '=', 'tbl_luckydraw.order_id')
+      .where('tbl_luckydraw.user_id', userId)
+      .where('tbl_luckydraw.is_delete', 0)
+      .where('orders.order_status', '!=', 'Cancelled');
+
+    const getUserup = await knex('users').where('id', userId).first();
+
+    const apiUrl = 'https://backend.aisensy.com/campaign/t1/api/v2';
+    // Convert OTP code to a time-based string
+    const phone_with_country_code = `${getUserup.country_code}${getUserup.user_phone}`;
+
+    const payload = {
+      "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyYiIsIm5hbWUiOiJRdWlja2FydCBHZW5lcmFsIFRyYWRpbmcgQ28gTExDIiwiYXBwTmFtZSI6IkFpU2Vuc3kiLCJjbGllbnRJZCI6IjY3NjE1ZGJmODRjN2RiMjVlMzg0NGMyNSIsImFjdGl2ZVBsYW4iOiJGUkVFX0ZPUkVWRVIiLCJpYXQiOjE3MzQ0MzQyMzl9.FXBdWtjPyBXl0AONmLnOZa6zuInsaQaa8MtWvOAyZCs",
+      "campaignName": "CancelOrderIphone",
+      "destination": "+" + phone_with_country_code,
+      "userName": "Quickart General Trading Co LLC",
+      "templateParams": [
+        getUserup.name, group_id, finalAmount, `${usertotalorders.length}`
+      ],
+      "source": "new-landing-page form",
+      "media": {},
+      "buttons": [],
+      "carouselCards": [],
+      "location": {},
+      "attributes": {},
+      "paramsFallbackValue": {
+        "FirstName": "user"
+      }
+    };
+
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    const updateentry = await knex('tbl_luckydraw')
+      .where('order_id', group_id)
+      .update({ 'is_delete': 1 });
+  }
+
+  const templateData = {
+    baseurl: process.env.BASE_URL,
+    user_name: userName,
+    user_email: userEmail,
+    store_orderss: storeOrders,
+    final_amount: "",
+    app_name: appName,
+    currency_sign: currencySign,
+    cart_id: orderlist.group_id
+  };
+  const subject = 'Delivery Order Cancelled'
+  // Trigger the email after order is placed
+  //sendCancelledEmail = await cancelorderMail(userEmail, templateData, subject);
+
+};
+
+const getCancelprdOrder = async (appDetatils) => {
+  const minCardRefundThreshold = 0.09;
+  let userId = appDetatils.user_id
+  cart_id = appDetatils.cart_id
+  store_order_id = appDetatils.store_order_id;
+  cancel_reason = appDetatils.cancel_reason;
+
+  // Check if there are any orders that are not already cancelled
+  const existingOrders = await knex("orders")
+    .where("cart_id", cart_id)
+    .where("order_status", "Cancelled")
+    .first();
+  // If there are no orders to cancel, return a message
+  if (existingOrders) {
+    throw new Error("Order are already cancelled.");
+  }
+  ////// new end////////////
+
+  const parseCancelSubscriptionIds = (raw) => {
+    if (raw === undefined || raw === null || raw === '') return [];
+    const parts = String(raw).split(',').map((s) => s.trim()).filter(Boolean);
+    const nums = parts.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n));
+    return [...new Set(nums)];
+  };
+
+  const normalizeUpdateRowCount = (result) => {
+    if (typeof result === 'number' && Number.isFinite(result)) return result;
+    if (result && typeof result === 'object' && 'rowCount' in result && Number.isFinite(Number(result.rowCount))) {
+      return Number(result.rowCount);
+    }
+    const n = parseInt(String(result), 10);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  // Only refund when this call actually moves subscription rows to Cancelled (Pending → Cancelled).
+  let cancelledSubscriptionRowsThisRequest = 0;
+  if (cart_id && userId && store_order_id) {
+
+    const cancelSubIds = parseCancelSubscriptionIds(appDetatils.subscription_id);
+    let subUpdateBuilder = knex('subscription_order')
+      .where('store_order_id', store_order_id)
+      .where('order_status', 'Pending');
+    if (cancelSubIds.length > 0) {
+      subUpdateBuilder = subUpdateBuilder.whereIn('id', cancelSubIds);
+    }
+
+    const subUpdateResult = await subUpdateBuilder.update({
+      cancel_reason: cancel_reason,
+      order_status: 'Cancelled',
+    });
+    cancelledSubscriptionRowsThisRequest = normalizeUpdateRowCount(subUpdateResult);
+    subcription_data = subUpdateResult;
+
+    const pendingOrPauseLeft = await knex('subscription_order')
+      .where('store_order_id', store_order_id)
+      .whereIn('order_status', ['Pending', 'Pause'])
+      .count({ count: 'id' })
+      .first();
+    const activeSubsLeft = Number(pendingOrPauseLeft?.count || 0);
+
+    if (activeSubsLeft === 0) {
+      order_data = await knex('orders')
+        .where('cart_id', cart_id)
+        .where('order_status', 'Pending')
+        .update({ order_status: 'Cancelled' });
+    }
+  }
+
+  const shouldApplySubscriptionRefund = cancelledSubscriptionRowsThisRequest > 0;
+
+  const totalDeliveries = await knex("subscription_order")
+    .where("store_order_id", store_order_id)
+    .count({ count: "id" })
+    .first();
+
+  const storeDetails = await knex('store_orders')
+    .where('store_order_id', store_order_id)
+    .first();
+
+  const OrdersDetails = await knex('orders')
+    .where('cart_id', cart_id)
+    .first();
+
+  const result = await knex('subscription_order')
+    .where('store_order_id', store_order_id)
+    .where('si_payment_flag', 'yes')
+    .where('order_status', 'Cancelled')
+    .count({ cancelled_count: 'id' });
+  const cancelledCount = result[0].cancelled_count;
+
+  const repeatOrders = storeDetails.repeat_orders;
+  const subTotalDelivery = storeDetails.sub_total_delivery;
+  const repeatOrderCount = repeatOrders.trim().split(',');
+  const totalDeliveryWeek = repeatOrderCount.length * subTotalDelivery;
+  const totalPrice = storeDetails.price / totalDeliveryWeek;
+  const reserveAmount = 0;
+  const TotalPaidAmount = (cancelledCount) ? (cancelledCount * totalPrice) : 0;
+  const TotalPriceOrdersAmt = (parseFloat(reserveAmount) + parseFloat(TotalPaidAmount));
+  const totalWalletPaid = (OrdersDetails.paid_by_wallet) ? Number(OrdersDetails.paid_by_wallet) : 0;
+  const totalRefWalletPaid = (OrdersDetails.paid_by_ref_wallet) ? Number(OrdersDetails.paid_by_ref_wallet) : 0;
+  const cardPaidBySplit = (
+    OrdersDetails &&
+    OrdersDetails.payment_method != 'COD' &&
+    OrdersDetails.payment_status == 'success'
+  )
+    ? Math.max(
+      Number(OrdersDetails.total_price || 0) -
+      Number(OrdersDetails.paid_by_wallet || 0) -
+      Number(OrdersDetails.paid_by_ref_wallet || 0),
+      0
+    )
+    : 0;
+  const totalCardPaid = Math.max(
+    Number(OrdersDetails?.rem_price || 0),
+    cardPaidBySplit
+  );
+
+  const isPayPerDelivery =
+    OrdersDetails?.payment_type &&
+    String(OrdersDetails.payment_type).toLowerCase() === "payperdelivery";
+
+  /** Scope wallet_history rows to this subscription line: trim cart_id, and treat NULL cart as '' for legacy rows. */
+  const applyWalletHistoryOrderScope = (qb) => {
+    const cartIdTrim = String(cart_id ?? "").trim();
+    const gidRaw = OrdersDetails?.group_id;
+    const gidTrim =
+      gidRaw !== undefined && gidRaw !== null && String(gidRaw).trim() !== ""
+        ? String(gidRaw).trim()
+        : "";
+    qb.where(function () {
+      this.whereRaw("trim(coalesce(cart_id::text, '')) = ?", [cartIdTrim]);
+      if (gidTrim) {
+        this.orWhere(function () {
+          this.whereRaw("trim(coalesce(group_id::text, '')) = ?", [gidTrim]).where(function () {
+            this.whereNull("cart_id").orWhereRaw("trim(coalesce(cart_id::text, '')) = ?", [""]);
+          });
+        });
+      }
+    });
+  };
+
+  const user = await knex("users")
+    .select("user_phone", "wallet", "wallet_balance", "referral_balance", "name", "email")
+    .where("id", userId)
+    .first();
+
+  // Refund wallet / card only when subscription_order rows were moved to Cancelled (Pending → Cancelled) in this request.
+  if (shouldApplySubscriptionRefund) {
+    const totalDeliveryCount = Number(totalDeliveries.count || 0);
+    // Split payment evenly across ALL subscription rows for this line item (Pending, Pause, Completed, Cancelled all count).
+    // Refund only for rows cancelled in this request. Using (total - cancelCount) wrongly attributes 100% of payment
+    // to the last non-cancelled row (e.g. one Paused + one Cancelled → divisor 1 → full refund).
+    const deliveriesForSplit = totalDeliveryCount > 0 ? totalDeliveryCount : 1;
+    const nCancelledThisCall = Math.min(
+      Math.max(0, Number(cancelledSubscriptionRowsThisRequest) || 0),
+      deliveriesForSplit
+    );
+
+    const walletDeductionResources = isPayPerDelivery
+      ? ["order_placed_wallet", "order_wallet_deduction"]
+      : ["order_placed_wallet"];
+    const refDeductionResources = isPayPerDelivery
+      ? ["order_placed_wallet_ref", "order_referral_deduction"]
+      : ["order_placed_wallet_ref"];
+
+    let walletAmt = 0;
+    let refWalletAmt = 0;
+
+    const walletPerDelivery = totalWalletPaid / deliveriesForSplit;
+    const refWalletPerDelivery = totalRefWalletPaid / deliveriesForSplit;
+    const cardPerDelivery = totalCardPaid / deliveriesForSplit;
+    walletAmt = walletPerDelivery * nCancelledThisCall;
+    refWalletAmt = refWalletPerDelivery * nCancelledThisCall;
+    let cardAmt = cardPerDelivery * nCancelledThisCall;
+
+    const walletDeductionRow = await knex("wallet_history")
+      .where("user_id", userId)
+      .whereIn("resource", walletDeductionResources)
+      .where("type", "deduction")
+      .where(function () {
+        applyWalletHistoryOrderScope(this);
+      })
+      .select(knex.raw("COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_deduction"))
+      .first();
+
+    const walletRefundRow = await knex("wallet_history")
+      .where("user_id", userId)
+      .where("resource", "order_refund_cancelled")
+      .where("type", "Add")
+      .where(function () {
+        applyWalletHistoryOrderScope(this);
+      })
+      .select(knex.raw("COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_refund"))
+      .first();
+
+    const refDeductionRow = await knex("wallet_history")
+      .where("user_id", userId)
+      .whereIn("resource", refDeductionResources)
+      .where("type", "deduction")
+      .where(function () {
+        applyWalletHistoryOrderScope(this);
+      })
+      .select(knex.raw("COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_deduction"))
+      .first();
+
+    const refRefundRow = await knex("wallet_history")
+      .where("user_id", userId)
+      .where("resource", "order_refund_cancelled_ref")
+      .whereIn("type", ["Add", "wallet_expired"])
+      .where(function () {
+        applyWalletHistoryOrderScope(this);
+      })
+      .select(knex.raw("COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_refund"))
+      .first();
+
+    const cardDeductionTotal = Math.max(0, Number(totalCardPaid || 0));
+    const cardRefundRow = await knex("wallet_history")
+      .where("user_id", userId)
+      .where("resource", "order_refund_cancelled_card_to_wallet")
+      .where("type", "Add")
+      .where(function () {
+        applyWalletHistoryOrderScope(this);
+      })
+      .select(knex.raw("COALESCE(SUM(NULLIF(trim(amount), '')::numeric), 0) as total_refund"))
+      .first();
+
+    const walletDeductionMatched = Number(walletDeductionRow?.total_deduction || 0);
+    const walletRefundSoFar = Number(walletRefundRow?.total_refund || 0);
+    const walletRemainingRefundable = Math.max(0, walletDeductionMatched - walletRefundSoFar);
+
+    const refDeductionMatched = Number(refDeductionRow?.total_deduction || 0);
+    const refRefundSoFar = Number(refRefundRow?.total_refund || 0);
+    const refRemainingRefundable = Math.max(0, refDeductionMatched - refRefundSoFar);
+    const cardRemainingRefundable = Math.max(
+      0,
+      cardDeductionTotal - Number(cardRefundRow?.total_refund || 0)
+    );
+
+    walletAmt = Math.min(Number(walletAmt || 0), walletRemainingRefundable);
+    refWalletAmt = Math.min(Number(refWalletAmt || 0), refRemainingRefundable);
+    cardAmt = Math.min(Number(cardAmt || 0), cardRemainingRefundable);
+    if (cardAmt <= minCardRefundThreshold) {
+      cardAmt = 0;
+    }
+
+    let actualWallet = Number(user.wallet_balance || 0) + walletAmt;
+    let actualRefWallet = Number(user.referral_balance || 0) + refWalletAmt;
+
+
+    if (walletAmt > 0) {
+      await knex("users").where("id", userId).update({
+        wallet_balance: actualWallet.toFixed(2),
+      });
+      const nextWId = await getNextWalletHistoryWId();
+      await knex("wallet_history").insert({
+        w_id: nextWId,
+        user_id: userId,
+        amount: walletAmt.toFixed(2),
+        resource: "order_refund_cancelled",
+        type: "Add",
+        group_id: "",
+        cart_id: cart_id,
+      });
+    }
+
+    if (Number(refWalletAmt) > 0) {
+      const lastTxn = await knex("wallet_history")
+        .where("user_id", userId)
+        .where("type", "deduction")
+        .whereIn("resource", refDeductionResources)
+        .where(function () {
+          applyWalletHistoryOrderScope(this);
+        })
+        .orderBy("w_id", "desc")
+        .first();
+
+      if (!lastTxn) {
+        refWalletAmt = 0;
+        actualRefWallet = Number(user.referral_balance || 0);
+      } else {
+        let walletType = "Add";
+        const dubaiTime = moment.tz("Asia/Dubai");
+        const todayDubai = dubaiTime.format("YYYY-MM-DD");
+
+        if (
+          lastTxn.expiry_date &&
+          moment(lastTxn.expiry_date).tz("Asia/Dubai").format("YYYY-MM-DD") < todayDubai
+        ) {
+          walletType = "wallet_expired";
+        }
+
+        if (walletType === "Add") {
+          await knex("users")
+            .where("id", userId)
+            .update({
+              referral_balance: actualRefWallet.toFixed(2)
+            });
+        }
+
+        const nextWId = await getNextWalletHistoryWId();
+        await knex("wallet_history").insert({
+          w_id: nextWId,
+          user_id: userId,
+          amount: refWalletAmt.toFixed(2),
+          resource: "order_refund_cancelled_ref",
+          type: walletType,
+          group_id: OrdersDetails.group_id,
+          cart_id: cart_id,
+          expiry_date: lastTxn.expiry_date || null
+        });
+      }
+    }
+
+    if (Number(cardAmt) > 0) {
+      const latestUserWallet = await knex("users")
+        .select("wallet_balance")
+        .where("id", userId)
+        .first();
+
+      await knex("users")
+        .where("id", userId)
+        .update({
+          wallet_balance: (Number(latestUserWallet?.wallet_balance || 0) + Number(cardAmt)).toFixed(2),
+        });
+
+      const nextWId = await getNextWalletHistoryWId();
+      await knex("wallet_history").insert({
+        w_id: nextWId,
+        user_id: userId,
+        amount: cardAmt.toFixed(2),
+        resource: "order_refund_cancelled_card_to_wallet",
+        type: "Add",
+        group_id: OrdersDetails.group_id || "",
+        cart_id: cart_id,
+      });
+    }
+
+    const remainingWallet = totalWalletPaid - walletAmt;
+    const remainingRefWallet = totalRefWalletPaid - refWalletAmt;
+    const remainingCard = totalCardPaid - cardAmt;
+
+    await knex('orders')
+      .where('cart_id', cart_id)
+      .where('order_status', 'Cancelled')
+      .update({
+        'del_partner_tip': 0,
+        'cod_charges': 0,
+        'reserve_amount': 0,
+        'paid_by_wallet': parseFloat(remainingWallet.toFixed(2)),
+        'paid_by_ref_wallet': parseFloat(remainingRefWallet.toFixed(2)),
+        'rem_price': parseFloat(Math.max(0, remainingCard).toFixed(2))
+      });
+  }
 
   //Email Code
   storeOrders = await knex('store_orders')
