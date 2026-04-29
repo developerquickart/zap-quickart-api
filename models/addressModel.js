@@ -183,7 +183,7 @@ const addAddress = async (imageData) => {
     const now = new Date();
 
     // OPTIMIZATION: Fetch society, max address_id, and existing address (for Home/Office) in parallel
-    const isInsertOnly = type === 'Others' || type === 'Work';
+    const isInsertOnly = type === 'Others' || type === 'Work' || type === 'Home';
     const promises = [
         society_name ? knex('society').where('society_name', society_name).first() : Promise.resolve(null),
         knex('address').max('address_id as max_id').first(),
