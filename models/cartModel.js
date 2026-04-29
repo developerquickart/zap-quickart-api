@@ -1777,6 +1777,7 @@ const showspcatCart = async (appDetatils) => {
       const lastAdd = await knex('address')
         .select('address_id', 'type', 'house_no', 'landmark', 'lat', 'lng', 'society', knex.raw(`CONCAT('${baseurl}', doorimage) as doorimage`))
         .where('address_id', orderlist.address_id)
+        .whereRaw('COALESCE(is_zap_address, false) = true')
         .where('select_status', '!=', 2)
         .first(); // .first() to retrieve a single address
 
