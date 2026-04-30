@@ -1004,7 +1004,7 @@ const getQuickordercheckout = async (appDetails) => {
         try {
             await knex('performance_checkpoints').insert({
                 group_id: groupId,
-                checkout_ts: knex.raw("now() AT TIME ZONE 'Asia/Dubai'")
+                checkout_ts: knex.raw("NOW() AT TIME ZONE 'UTC'")
             });
         } catch (pcErr) {
             logToFile(`[getQuickordercheckout] performance_checkpoints insert failed for groupId ${groupId}: ${pcErr.message}`);
