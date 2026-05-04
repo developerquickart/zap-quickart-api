@@ -959,6 +959,8 @@ const getTopSelling = async (appDetatils) => {
       .where('store_products.store_id', store_id)
       .whereIn('product_varient.product_id', productIds)
       .whereNotNull('store_products.price')
+      .where('store_products.stock', '>', 0)
+      .where('store_products.is_deleted', 0)
       .where('product_varient.approved', 1)
       .where('product_varient.is_delete', 0);
   }
@@ -1063,46 +1065,6 @@ const getTopSelling = async (appDetatils) => {
   for (let i = 0; i < productDetail.length; i++) {
     const ProductList = productDetail[i];
 
-    // Get price from deals or store products (already fetched)
-    let price = dealsMap[ProductList.varient_id] || storeProductsMap[ProductList.varient_id] || 0;
-
-
-    // Use pre-fetched data instead of queries
-    let isSubscription = 'false';
-    let isFavourite = 'false';
-    let notifyMe = 'false';
-    let cartQty = 0;
-
-    if (user_id) {
-      isSubscription = subscriptionMap[ProductList.varient_id] ? 'true' : 'false';
-      isFavourite = wishlistMap[ProductList.varient_id] ? 'true' : 'false';
-      cartQty = cartQtyMap[ProductList.varient_id] || 0;
-      notifyMe = notifyMeMap[ProductList.varient_id] ? 'true' : 'false';
-    }
-
-    const baseurl = process.env.BUNNY_NET_IMAGE;
-
-
-    const sub_price = (ProductList.mrp * ProductList.percentage) / 100;
-    const finalsubprice = ProductList.mrp - sub_price;
-    const subscription_price = parseFloat(finalsubprice.toFixed(2));
-    if (ProductList.country_icon == null) {
-      countryicon = null
-    } else {
-      countryicon = baseurl + ProductList.country_icon
-    }
-
-    if (Number.isInteger(price)) {
-      priceval = price + '.001'
-    } else {
-      priceval = price
-    }
-    if (Number.isInteger(ProductList.mrp)) {
-      mrpval = ProductList.mrp + '.001'
-    } else {
-      mrpval = ProductList.mrp
-    }
-
     // Use pre-fetched feature categories
     let feature_tags = [];
     if (ProductList.fcat_id != null) {
@@ -1173,25 +1135,69 @@ const getTopSelling = async (appDetatils) => {
 
       customizedVarientData.push(customizedVarient);
     }
+
+    customizedVarientData.sort((a, b) => Number(a.price) - Number(b.price));
+    if (customizedVarientData.length === 0) {
+      continue;
+    }
+
+    const mainV = customizedVarientData[0];
+    const price = mainV.price;
+
+    const sub_price = (mainV.mrp * ProductList.percentage) / 100;
+    const finalsubprice = mainV.mrp - sub_price;
+    const subscription_price = parseFloat(finalsubprice.toFixed(2));
+    let countryicon;
+    if (ProductList.country_icon == null) {
+      countryicon = null;
+    } else {
+      countryicon = baseurl + ProductList.country_icon;
+    }
+
+    let priceval;
+    if (Number.isInteger(price)) {
+      priceval = price + '.001';
+    } else {
+      priceval = price;
+    }
+    let mrpval;
+    if (Number.isInteger(mainV.mrp)) {
+      mrpval = mainV.mrp + '.001';
+    } else {
+      mrpval = mainV.mrp;
+    }
+
+    let isSubscription = 'false';
+    let isFavourite = 'false';
+    let notifyMe = 'false';
+    let cartQty = 0;
+
+    if (user_id) {
+      isSubscription = subscriptionMap[mainV.varient_id] ? 'true' : 'false';
+      isFavourite = wishlistMap[mainV.varient_id] ? 'true' : 'false';
+      cartQty = cartQtyMap[mainV.varient_id] || 0;
+      notifyMe = notifyMeMap[mainV.varient_id] ? 'true' : 'false';
+    }
+
     const varients = customizedVarientData;
 
     const customizedProduct = {
-      stock: ProductList.stock,
-      varient_id: ProductList.varient_id,
+      stock: mainV.stock,
+      varient_id: mainV.varient_id,
       product_id: ProductList.product_id,
       product_name: ProductList.product_name,
-      product_image: baseurl + ProductList.product_image,
-      thumbnail: baseurl + ProductList.thumbnail,
-      description: ProductList.description,
+      product_image: mainV.product_image,
+      thumbnail: mainV.thumbnail,
+      description: mainV.description,
       price: parseFloat(priceval),
       mrp: parseFloat(mrpval),
-      unit: ProductList.unit,
-      quantity: ProductList.quantity,
+      unit: mainV.unit,
+      quantity: mainV.quantity,
       type: ProductList.type,
       percentage: ProductList.percentage,
       isSubscription: isSubscription,
       subscription_price: subscription_price,
-      discountper: parseFloat(ProductList.discountper) || 0,
+      discountper: parseFloat(mainV.discountper) || 0,
       avgrating: 0,
       notify_me: notifyMe,
       isFavourite: isFavourite,
