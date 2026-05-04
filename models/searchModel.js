@@ -1027,7 +1027,7 @@ const searchbybannerDebugSlice = (ids) => {
     return { count: arr.length, ids_sample: arr.slice(0, SEARCHBYBANNER_DEBUG_MAX_IDS), truncated: true };
 };
 
-const getSearchbybanner = async (appDetatils) => {
+const getSearchbybanner2 = async (appDetatils) => {
 
     const store_id = appDetatils.store_id;
     const keyword = appDetatils.keyword;
@@ -1766,6 +1766,769 @@ const getSearchbybanner = async (appDetatils) => {
             subscription_price: subscription_price,
             availability: ProductList.availability,
             discountper: 0,
+            avgrating: 0,
+            notify_me: notifyMe,
+            isFavourite: isFavourite,
+            cart_qty: cartQty,
+            total_cart_qty: total_cart_qty,
+            subcartQty: subcartQty,
+            total_subcart_qty: total_subcart_qty,
+            countrating: 0,
+            country_icon: countryicon,
+            feature_tags: feature_tags,
+            features: features,
+            varients: variants,
+            page: pageFilter,
+            is_customized: ProductList.is_customized,
+            perPage: perPage,
+            totalPages: totalPages
+        };
+    });
+
+    return { 'products': customizedProductData, 'banner': banner };
+};
+const getSearchbybanner = async (appDetatils) => {
+
+    const store_id = appDetatils.store_id;
+    const keyword = appDetatils.keyword;
+    const baseurl = process.env.BUNNY_NET_IMAGE;
+
+    let user_id;
+    if (appDetatils.user_id != "null") {
+        user_id = appDetatils.user_id;
+    } else {
+        user_id = appDetatils.device_id;
+    }
+
+    const device_id = appDetatils.device_id;
+    const byname = appDetatils.byname;
+    const subcatid = appDetatils.sub_cat_id;
+    const cat_id = appDetatils.cat_id;
+    const brand_id = appDetatils.brand_id;
+    const sortprice = appDetatils.sortprice;
+    const sortname = appDetatils.sortname;
+    const banner_id = appDetatils.banner_id;
+    // Normalize banner_type to avoid case/whitespace mismatches from clients
+    const banner_type = String(appDetatils.banner_type ?? 'store').trim().toLowerCase();
+    const debugPrefix = '[searchbybanner-debug]';
+    /** Which banner row branch populated product ids before sequencing: variant | subcat | parent | none */
+    let primaryBannerProductSource = 'none';
+
+    // Search History Logic (Moved outside the loop)
+    /* if (keyword && keyword !== 'All') {
+        const handleRecentSearch = async (u_id, d_id) => {
+            const searchUser = u_id || d_id;
+            if (!searchUser) return;
+  
+            const check = await knex('recent_search')
+                .where(u_id ? 'user_id' : 'device_id', searchUser);
+            
+            await knex('recent_search')
+                .where(u_id ? 'user_id' : 'device_id', searchUser)
+                .where('keyword', keyword)
+                .delete();
+  
+            if (check.length >= 10) {
+                const firstEntry = await knex('recent_search')
+                    .where(u_id ? 'user_id' : 'device_id', searchUser)
+                    .orderBy('id', 'asc')
+                    .first();
+                if (firstEntry) {
+                    await knex('recent_search').where('id', firstEntry.id).delete();
+                }
+            }
+  
+            await knex('recent_search').insert({
+                [u_id ? 'user_id' : 'device_id']: searchUser,
+                keyword: keyword
+            });
+        };
+  
+        if (user_id || device_id) {
+            await handleRecentSearch(appDetatils.user_id !== "null" ? user_id : null, device_id);
+        }
+    } */
+
+    let banner = null;
+    if (banner_type === 'product') {
+        banner = await knex('sec_banner')
+            .select('banner_id', 'banner_name', knex.raw("CONCAT(?::text, banner_image) as banner_image", [baseurl]), 'parent_cat_id', 'cat_id', 'varient_id')
+            .where('banner_id', banner_id)
+            .first();
+    } else {
+        banner = await knex('store_banner')
+            .select('banner_id', 'banner_name', knex.raw("CONCAT(?::text, banner_image) as banner_image", [baseurl]), 'parent_cat_id', 'cat_id', 'varient_id')
+            .where('banner_id', banner_id)
+            .first();
+    }
+    console.log(`${debugPrefix} request`, {
+        store_id,
+        banner_id,
+        banner_type,
+        subcatid,
+        cat_id,
+        brand_id,
+        byname,
+        keyword,
+        sortprice,
+        sortname,
+        min_price: appDetatils.min_price,
+        max_price: appDetatils.max_price,
+        min_discount: appDetatils.min_discount,
+        max_discount: appDetatils.max_discount,
+        page: appDetatils.page,
+        perpage: appDetatils.perpage
+    });
+    console.log(`${debugPrefix} banner_row`, {
+        banner_table: banner_type === 'product' ? 'sec_banner' : 'store_banner',
+        banner_exists: !!banner,
+        banner_name: banner?.banner_name ?? null,
+        raw_varient_id: banner?.varient_id ?? null,
+        raw_cat_id: banner?.cat_id ?? null,
+        raw_parent_cat_id: banner?.parent_cat_id ?? null
+    });
+
+    // If the banner explicitly targets variant IDs, we must:
+    // - select products through those variants
+    // - and return ONLY those variants (not every variant of the product)
+    let bannerVariantIds = null;
+    if (banner?.varient_id && String(banner.varient_id).trim() !== '') {
+        // varient_id is a text column in PostgreSQL (store_banner/sec_banner),
+        // and may come as "1,2", "[1,2]", "1|2", etc.
+        // Extract numeric IDs robustly to avoid false-empty parsing.
+        const parsed = (String(banner.varient_id).match(/\d+/g) || [])
+            .map(v => parseInt(v, 10))
+            .filter(v => Number.isFinite(v) && v > 0);
+        if (parsed.length > 0) bannerVariantIds = new Set(parsed);
+    }
+    const parsedCatIds = banner?.cat_id
+        ? banner.cat_id.split(',').map((v) => Number(String(v).trim())).filter((v) => Number.isFinite(v) && v > 0)
+        : [];
+    const parsedParentCatIds = banner?.parent_cat_id
+        ? banner.parent_cat_id.split(',').map((v) => Number(String(v).trim())).filter((v) => Number.isFinite(v) && v > 0)
+        : [];
+    const parsedVariantIdList = bannerVariantIds ? Array.from(bannerVariantIds).sort((a, b) => a - b) : [];
+    console.log(`${debugPrefix} parsed_ids`, {
+        parsed_variant_ids: parsedVariantIdList,
+        parsed_variant_count: parsedVariantIdList.length,
+        parsed_cat_ids: parsedCatIds,
+        parsed_cat_count: parsedCatIds.length,
+        parsed_parent_cat_ids: parsedParentCatIds,
+        parsed_parent_cat_count: parsedParentCatIds.length
+    });
+
+    const categoryProductIdsSet = new Set();
+
+    if (banner) {
+        if (bannerVariantIds && bannerVariantIds.size > 0) {
+            primaryBannerProductSource = 'variant';
+            // Priority 1: banner.varient_id contains VARIANT IDs, but the main query filters by product_id.
+            // Map variant IDs -> product IDs (scoped to this store and only active/approved items).
+            const variantIds = Array.from(bannerVariantIds || []);
+
+            if (variantIds.length > 0) {
+                const variantRowsInDb = await knex('product_varient')
+                    .whereIn('varient_id', variantIds)
+                    .where('is_delete', 0)
+                    .pluck('varient_id');
+                const variantRowsSet = new Set(variantRowsInDb);
+                const variantIdsUnknown = variantIds.filter((v) => !variantRowsSet.has(v));
+
+                const variantProductIds = await knex('store_products')
+                    .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                    .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                    .where('store_products.store_id', store_id)
+                    .whereIn('product_varient.varient_id', variantIds)
+                    .andWhere('product.hide', '=', 0)
+                    .andWhere('product.is_delete', '=', 0)
+                    .andWhere('product.approved', '=', 1)
+                    .andWhere('product_varient.approved', '=', 1)
+                    .andWhere('product_varient.is_delete', '=', 0)
+                    .andWhere('store_products.stock', '>', 0)
+                    .andWhere('store_products.is_deleted', '=', 0)
+                    .whereNotNull('store_products.price')
+                    .pluck('product.product_id');
+
+                const variantIdsPassingStoreJoin = await knex('store_products')
+                    .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                    .join('product', 'product_varient.product_id', '=', 'product.product_id')
+                    .where('store_products.store_id', store_id)
+                    .whereIn('product_varient.varient_id', variantIds)
+                    .andWhere('product.hide', '=', 0)
+                    .andWhere('product.is_delete', '=', 0)
+                    .andWhere('product.approved', '=', 1)
+                    .andWhere('product_varient.approved', '=', 1)
+                    .andWhere('product_varient.is_delete', '=', 0)
+                    .andWhere('store_products.stock', '>', 0)
+                    .andWhere('store_products.is_deleted', '=', 0)
+                    .whereNotNull('store_products.price')
+                    .distinct('product_varient.varient_id')
+                    .pluck('product_varient.varient_id');
+                const passingSet = new Set(variantIdsPassingStoreJoin);
+                const variantIdsFailingStoreRules = variantIds.filter((v) => variantRowsSet.has(v) && !passingSet.has(v));
+
+                variantProductIds.forEach(id => categoryProductIdsSet.add(id));
+                console.log(`${debugPrefix} variant_path`, {
+                    variant_ids_requested: searchbybannerDebugSlice(variantIds),
+                    variant_ids_in_product_varient_not_deleted: searchbybannerDebugSlice(variantRowsInDb),
+                    variant_ids_unknown_in_db: searchbybannerDebugSlice(variantIdsUnknown),
+                    variant_ids_failing_store_product_rules: searchbybannerDebugSlice(variantIdsFailingStoreRules),
+                    mapped_product_ids: searchbybannerDebugSlice(variantProductIds)
+                });
+            }
+        } else if (banner.cat_id && banner.cat_id !== '') {
+            // Priority 2: Use products in these specific subcategories,
+            // including additional-category mappings via product_cat.
+            const subcategories = banner.cat_id
+                .split(',')
+                .map(v => Number(String(v).trim()))
+                .filter(v => Number.isFinite(v) && v > 0);
+
+            if (subcategories.length === 0) {
+                // no valid category ids, skip
+                console.log(`${debugPrefix} cat_path_skipped_invalid_ids`, {
+                    raw_cat_id: banner.cat_id
+                });
+            } else {
+            primaryBannerProductSource = 'subcat';
+            const catProducts = await knex('product')
+                .join('product_varient', 'product.product_id', 'product_varient.product_id')
+                .join('store_products', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                .where('store_products.store_id', store_id)
+                .whereIn('product.cat_id', subcategories)
+                .andWhere('product.hide', '=', 0)
+                .andWhere('product.is_delete', '=', 0)
+                .andWhere('product.approved', '=', 1)
+                .andWhere('product_varient.approved', '=', 1)
+                .andWhere('product_varient.is_delete', '=', 0)
+                .andWhere('store_products.stock', '>', 0)
+                .andWhere('store_products.is_deleted', '=', 0)
+                .whereNotNull('store_products.price')
+                .pluck('product.product_id');
+            catProducts.forEach(id => categoryProductIdsSet.add(id));
+
+            const extraCatProducts = await knex('product')
+                .join('product_cat', 'product_cat.product_id', 'product.product_id')
+                .join('product_varient', 'product.product_id', 'product_varient.product_id')
+                .join('store_products', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                .where('store_products.store_id', store_id)
+                .whereIn('product_cat.cat_id', subcategories)
+                .andWhere('product.hide', '=', 0)
+                .andWhere('product.is_delete', '=', 0)
+                .andWhere('product.approved', '=', 1)
+                .andWhere('product_varient.approved', '=', 1)
+                .andWhere('product_varient.is_delete', '=', 0)
+                .andWhere('store_products.stock', '>', 0)
+                .andWhere('store_products.is_deleted', '=', 0)
+                .whereNotNull('store_products.price')
+                .pluck('product.product_id');
+            extraCatProducts.forEach(id => categoryProductIdsSet.add(id));
+            const catProductSet = new Set(catProducts);
+            const onlyInExtra = extraCatProducts.filter((id) => !catProductSet.has(id));
+            console.log(`${debugPrefix} cat_path`, {
+                subcategory_ids: searchbybannerDebugSlice(subcategories),
+                main_cat_product_ids: searchbybannerDebugSlice(catProducts),
+                product_cat_only_product_ids: searchbybannerDebugSlice(onlyInExtra),
+                product_cat_all_product_ids: searchbybannerDebugSlice(extraCatProducts),
+                merged_unique_count: new Set([...catProducts, ...extraCatProducts]).size
+            });
+            }
+        } else if (banner.parent_cat_id && banner.parent_cat_id !== '') {
+            // Priority 3: Use products in all subcategories under these parent categories,
+            // including additional-category mappings via product_cat.
+            const parent_cat_ids = banner.parent_cat_id
+                .split(',')
+                .map((v) => Number(String(v).trim()))
+                .filter((v) => Number.isFinite(v) && v > 0);
+
+            if (parent_cat_ids.length === 0) {
+                console.log(`${debugPrefix} parent_path_skipped_invalid_ids`, {
+                    raw_parent_cat_id: banner.parent_cat_id
+                });
+            } else {
+            primaryBannerProductSource = 'parent';
+            // 1) Find all subcategory IDs under these parents
+            const subcategories = await knex('categories')
+                .whereIn('parent', parent_cat_ids)
+                .where('status', 1)
+                .pluck('cat_id');
+            console.log(`${debugPrefix} parent_path_subcategories`, {
+                parent_cat_ids: searchbybannerDebugSlice(parent_cat_ids),
+                resolved_subcategory_ids: searchbybannerDebugSlice(subcategories)
+            });
+
+            if (subcategories.length > 0) {
+                // 2) Products whose main cat_id is one of these subcategories
+                const parentCatProducts = await knex('product')
+                    .join('product_varient', 'product.product_id', 'product_varient.product_id')
+                    .join('store_products', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                    .where('store_products.store_id', store_id)
+                    .whereIn('product.cat_id', subcategories)
+                    .andWhere('product.hide', '=', 0)
+                    .andWhere('product.is_delete', '=', 0)
+                    .andWhere('product.approved', '=', 1)
+                    .andWhere('product_varient.approved', '=', 1)
+                    .andWhere('product_varient.is_delete', '=', 0)
+                    .andWhere('store_products.stock', '>', 0)
+                    .andWhere('store_products.is_deleted', '=', 0)
+                    .whereNotNull('store_products.price')
+                    .pluck('product.product_id');
+                parentCatProducts.forEach(id => categoryProductIdsSet.add(id));
+
+                // 3) Products mapped to these subcategories via additional category mappings
+                const extraCatProducts = await knex('product')
+                    .join('product_cat', 'product_cat.product_id', 'product.product_id')
+                    .join('product_varient', 'product.product_id', 'product_varient.product_id')
+                    .join('store_products', 'store_products.varient_id', '=', 'product_varient.varient_id')
+                    .where('store_products.store_id', store_id)
+                    .whereIn('product_cat.cat_id', subcategories)
+                    .andWhere('product.hide', '=', 0)
+                    .andWhere('product.is_delete', '=', 0)
+                    .andWhere('product.approved', '=', 1)
+                    .andWhere('product_varient.approved', '=', 1)
+                    .andWhere('product_varient.is_delete', '=', 0)
+                    .andWhere('store_products.stock', '>', 0)
+                    .andWhere('store_products.is_deleted', '=', 0)
+                    .whereNotNull('store_products.price')
+                    .pluck('product.product_id');
+                extraCatProducts.forEach(id => categoryProductIdsSet.add(id));
+                const parentCatProductSet = new Set(parentCatProducts);
+                const onlyInExtraParent = extraCatProducts.filter((id) => !parentCatProductSet.has(id));
+                console.log(`${debugPrefix} parent_path_products`, {
+                    main_cat_product_ids: searchbybannerDebugSlice(parentCatProducts),
+                    product_cat_only_product_ids: searchbybannerDebugSlice(onlyInExtraParent),
+                    product_cat_all_product_ids: searchbybannerDebugSlice(extraCatProducts),
+                    merged_unique_count: new Set([...parentCatProducts, ...extraCatProducts]).size
+                });
+            } else {
+                console.log(`${debugPrefix} parent_path_no_subcategories`, {
+                    parent_cat_ids: searchbybannerDebugSlice(parent_cat_ids),
+                    hint: 'No active subcategories (categories.parent in parent_cat_ids, status=1)'
+                });
+            }
+            }
+        }
+    }
+
+    if (banner && primaryBannerProductSource === 'none') {
+        console.log(`${debugPrefix} banner_no_variant_cat_parent`, {
+            message: 'Banner row has no usable varient_id / cat_id / parent_cat_id for product resolution (sequencing may still add ids)'
+        });
+    }
+    if (!banner) {
+        console.log(`${debugPrefix} banner_not_found`, { banner_id, banner_type });
+    }
+
+    // Always Include: Products explicitly mapped to this banner in the sequencing table
+    const sequencedProductsQuery = knex('parent_category_product_sequences').select('product_id');
+    if (banner_type === 'store') {
+        sequencedProductsQuery.where('store_banner_id', banner_id);
+    } else {
+        sequencedProductsQuery.where('sec_banner_id', banner_id);
+    }
+    const sequencedIds = await sequencedProductsQuery.pluck('product_id');
+    const setBeforeSequencing = new Set(categoryProductIdsSet);
+    sequencedIds.forEach(id => categoryProductIdsSet.add(id));
+    const addedOnlyViaSequencing = sequencedIds.filter((id) => !setBeforeSequencing.has(id));
+
+    const categoryProductIds = Array.from(categoryProductIdsSet);
+    console.log(`${debugPrefix} candidate_products`, {
+        primary_banner_product_source: primaryBannerProductSource,
+        product_ids_before_sequencing: searchbybannerDebugSlice(Array.from(setBeforeSequencing)),
+        sequenced_product_ids: searchbybannerDebugSlice(sequencedIds),
+        product_ids_added_only_by_sequence_table: searchbybannerDebugSlice(addedOnlyViaSequencing),
+        merged_candidate_product_ids: searchbybannerDebugSlice(categoryProductIds),
+        merged_candidate_count: categoryProductIds.length
+    });
+
+    const pageFilter = appDetatils.page;
+    const perPage = appDetatils.perpage;
+    const minprice = parseFloat(appDetatils.min_price);
+    const maxprice = parseFloat(appDetatils.max_price);
+    const mindiscount = parseFloat(appDetatils.min_discount);
+    const maxdiscount = parseFloat(appDetatils.max_discount);
+
+    let words = [];
+    /* if (appDetatils.keyword !== 'All') {
+        words = keyword.split(/\s+/).filter(word => word.length > 3);
+    } */
+
+    const currentDate = new Date();
+    const topsellingsQuery = knex('store_products')
+        .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+        .join('product', 'product_varient.product_id', '=', 'product.product_id')
+        .leftJoin('tbl_country', knex.raw('tbl_country.id::text'), '=', 'product.country_id')
+        .leftJoin('deal_product', 'product_varient.varient_id', '=', 'deal_product.varient_id')
+        .leftJoin('parent_category_product_sequences', function () {
+            this.on('product.product_id', '=', 'parent_category_product_sequences.product_id');
+            if (banner_type === 'store') {
+                this.andOn('parent_category_product_sequences.store_banner_id', '=', knex.raw('?', [banner_id]))
+                    .andOn('parent_category_product_sequences.store_banner_id', '!=', 999);
+            } else if (banner_type === 'product') {
+                this.andOn('parent_category_product_sequences.sec_banner_id', '=', knex.raw('?', [banner_id]))
+                    .andOn('parent_category_product_sequences.sec_banner_id', '!=', 999);
+            }
+        })
+        .select(
+            knex.raw('MAX(store_products.stock) as stock'),
+            knex.raw('MAX(product_varient.varient_id) as varient_id'),
+            knex.raw('MAX(product_varient.description) as description'),
+            'product.product_id',
+            'product.product_name',
+            'product.product_image',
+            'product.thumbnail',
+            knex.raw('MAX(store_products.price) as price'),
+            knex.raw('MAX(store_products.mrp) as mrp'),
+            // Align unit/quantity with the representative variant (MAX varient_id), not lexical MAX(text).
+            knex.raw("(array_agg(product_varient.unit ORDER BY product_varient.varient_id DESC))[1] as unit"),
+            knex.raw("(array_agg(product_varient.quantity ORDER BY product_varient.varient_id DESC))[1] as quantity"),
+            'product.type',
+            knex.raw('MAX(tbl_country.country_icon) as country_icon'),
+            'product.percentage',
+            'product.availability',
+            'product.brand_id',
+            'product.cat_id',
+            'product.fcat_id',
+            'product.is_customized',
+            knex.raw('(100-((MAX(store_products.price)*100)/NULLIF(MAX(store_products.mrp), 0)))::double precision as discountper'),
+            knex.raw('(100-((MAX(deal_product.deal_price)*100)/NULLIF(MAX(store_products.mrp), 0)))::double precision as discountper1')
+        )
+        .groupBy(
+            'product.product_id',
+            'product.product_name',
+            'product.product_image',
+            'product.thumbnail',
+            'product.type',
+            'product.percentage',
+            'product.availability',
+            'product.brand_id',
+            'product.cat_id',
+            'product.fcat_id',
+            'product.is_customized',
+            'parent_category_product_sequences.store_banner_sequence',
+            'parent_category_product_sequences.sec_banner_sequence'
+        )
+        .where('store_products.store_id', store_id)
+        .where('product.hide', 0)
+        .where('product.is_delete', 0)
+        .where('product.approved', 1)
+        .where('product.is_zap', true)
+        .where('product_varient.approved', 1)
+        .where('product_varient.is_delete', 0)
+        .where('store_products.stock', '>', 0)
+        .where('store_products.is_deleted', 0)
+        .whereNotNull('store_products.price')
+        // Exclude ONLY products that are offer products for today.
+        // Include:
+        // - Non-offer products
+        // - Offer products with NULL offer_date
+        // - Offer products where offer_date is NOT today (past or future)
+        .where(builder => {
+            builder
+                .where('product.is_offer_product', '!=', 1)
+                .orWhereNull('product.offer_date')
+                .orWhereRaw('product.offer_date::date != CURRENT_DATE');
+        });
+
+    // Apply product-id restriction only when it exists.
+    // For variant-targeted banners, variant filter alone is enough and avoids false empty results.
+    if (categoryProductIds.length > 0) {
+        topsellingsQuery.whereIn('product.product_id', categoryProductIds);
+    } else if (!(bannerVariantIds && bannerVariantIds.size > 0)) {
+        console.log(`${debugPrefix} early_return_empty`, {
+            reason: 'no categoryProductIds and no bannerVariantIds',
+            primary_banner_product_source: primaryBannerProductSource,
+            merged_candidate_count: categoryProductIds.length,
+            sequenced_ids_count: sequencedIds.length,
+            parsed_variant_count: parsedVariantIdList.length
+        });
+        return { 'products': [], 'banner': banner };
+    }
+
+    // If the banner targets specific variants, restrict the main selection to ONLY those variants.
+    // This ensures the "main" varient_id in the response is banner-consistent.
+    if (bannerVariantIds && bannerVariantIds.size > 0) {
+        topsellingsQuery.whereIn('product_varient.varient_id', Array.from(bannerVariantIds));
+    }
+    console.log(`${debugPrefix} query_filters_applied`, {
+        has_variant_filter: !!(bannerVariantIds && bannerVariantIds.size > 0),
+        variant_filter_count: bannerVariantIds ? bannerVariantIds.size : 0,
+        has_category_product_filter: categoryProductIds.length > 0
+    });
+
+    const subcatFilterActive = subcatid !== 'null' && subcatid != null && subcatid !== '';
+    const priceFilterActive =
+        (minprice === 0 || !Number.isNaN(minprice)) && !Number.isNaN(maxprice) && (minprice === 0 || minprice) && maxprice;
+    const discountFilterActive =
+        !Number.isNaN(mindiscount) &&
+        !Number.isNaN(maxdiscount) &&
+        mindiscount &&
+        maxdiscount;
+
+    if (subcatid !== "null") {
+        topsellingsQuery.where('product.cat_id', subcatid);
+    }
+
+    if ((minprice === 0 || minprice) && maxprice) {
+        topsellingsQuery.whereBetween('store_products.price', [minprice, maxprice]);
+    }
+
+    if (mindiscount && maxdiscount) {
+        topsellingsQuery.havingRaw('(100-((MAX(store_products.price)*100)/NULLIF(MAX(store_products.mrp), 0)) BETWEEN ? AND ?) OR (100-((MAX(deal_product.deal_price)*100)/NULLIF(MAX(store_products.mrp), 0)) BETWEEN ? AND ?)', [
+            mindiscount, maxdiscount, mindiscount, maxdiscount
+        ]);
+    }
+
+    console.log(`${debugPrefix} main_query_client_narrowing`, {
+        sub_cat_id_applied: subcatFilterActive,
+        sub_cat_id_value: subcatid,
+        price_between_applied: !!priceFilterActive,
+        minprice,
+        maxprice,
+        discount_having_applied: !!discountFilterActive,
+        mindiscount,
+        maxdiscount,
+        static_main_query_excludes:
+            'offer product with offer_date = today; hide/delete/unapproved; stock<=0; null store price'
+    });
+
+    // Sequencing
+    if (banner_type === 'store') {
+        topsellingsQuery.orderByRaw('CASE WHEN parent_category_product_sequences.store_banner_sequence != 999 THEN parent_category_product_sequences.store_banner_sequence ELSE 9999 END ASC');
+    } else if (banner_type === 'product') {
+        topsellingsQuery.orderByRaw('CASE WHEN parent_category_product_sequences.sec_banner_sequence != 999 THEN parent_category_product_sequences.sec_banner_sequence ELSE 9999 END ASC');
+    }
+
+    if (sortprice === 'ltoh') topsellingsQuery.orderBy('store_products.price', 'ASC');
+    if (sortprice === 'htol') topsellingsQuery.orderBy('store_products.price', 'DESC');
+    if (sortname === 'atoz') topsellingsQuery.orderBy('product.product_name', 'ASC');
+    if (sortname === 'ztoa') topsellingsQuery.orderBy('product.product_name', 'DESC');
+
+    /* if (words.length > 0 && keyword !== 'All') {
+        topsellingsQuery.where(builder => {
+            words.forEach(pattern => {
+                builder.orWhere('product.product_name', 'like', `%${pattern}%`);
+            });
+        });
+    } */
+
+    const totalproducts = await topsellingsQuery;
+    const totalPages = Math.ceil(totalproducts.length / perPage);
+
+    const productDetail = await topsellingsQuery.offset((pageFilter - 1) * perPage).limit(perPage);
+    console.log(`${debugPrefix} query_result`, {
+        totalproducts_count: totalproducts.length,
+        page_products_count: productDetail.length,
+        totalPages,
+        page: pageFilter,
+        perPage
+    });
+
+    const includedIdSet = new Set(totalproducts.map((p) => p.product_id));
+    const includedSummaries = totalproducts.map((p) => ({
+        product_id: p.product_id,
+        product_name: p.product_name,
+        varient_id: p.varient_id,
+        cat_id: p.cat_id,
+        price: p.price
+    }));
+    const includedSampleLimit = 100;
+    console.log(`${debugPrefix} included_products`, {
+        distinct_product_count: includedIdSet.size,
+        total_grouped_rows: totalproducts.length,
+        sample_rows: includedSummaries.slice(0, includedSampleLimit),
+        sample_truncated: includedSummaries.length > includedSampleLimit
+    });
+
+    const filteredOutFromCandidates =
+        categoryProductIds.length > 0 ? categoryProductIds.filter((id) => !includedIdSet.has(id)) : [];
+    const sequencedNotInFinal = sequencedIds.filter((id) => !includedIdSet.has(id));
+    console.log(`${debugPrefix} filtered_out_vs_main_query`, {
+        had_where_in_candidate_product_ids: categoryProductIds.length > 0,
+        candidate_product_ids_removed_by_main_query_count: filteredOutFromCandidates.length,
+        candidate_product_ids_removed_by_main_query: searchbybannerDebugSlice(filteredOutFromCandidates),
+        sequenced_ids_not_in_final_result_count: sequencedNotInFinal.length,
+        sequenced_ids_not_in_final_result: searchbybannerDebugSlice(sequencedNotInFinal),
+        note: 'Candidates can be dropped by client sub_cat/price/discount filters, today-only offer rule, or failing grouped variant/store row constraints'
+    });
+
+    if (totalproducts.length === 0) {
+        console.log(`${debugPrefix} empty_banner_result_diagnosis`, {
+            primary_banner_product_source: primaryBannerProductSource,
+            merged_candidate_count: categoryProductIds.length,
+            sequenced_ids_count: sequencedIds.length,
+            sub_cat_id_applied: subcatFilterActive,
+            price_between_applied: !!priceFilterActive,
+            discount_having_applied: !!discountFilterActive,
+            has_variant_filter: !!(bannerVariantIds && bannerVariantIds.size > 0)
+        });
+    }
+
+    const pIds = productDetail.map(p => p.product_id);
+    const vIds = productDetail.map(p => p.varient_id);
+
+    if (pIds.length === 0) {
+        console.log(`${debugPrefix} empty_page_slice`, {
+            totalproducts_count: totalproducts.length,
+            page: pageFilter,
+            perPage,
+            message: totalproducts.length > 0 ? 'Page offset beyond results' : 'No products matched main query'
+        });
+        return { 'products': [], 'banner': banner };
+    }
+
+    // Batch fetching metadata
+    const [
+        allDeals,
+        allWishlist,
+        allCartItems,
+        allNotifyMe,
+        allVariants,
+        allImages,
+        allFeatures,
+        allFeatureTagsInfo
+    ] = await Promise.all([
+        knex('deal_product').whereIn('varient_id', vIds).where('store_id', store_id).where('valid_from', '<=', currentDate).where('valid_to', '>', currentDate),
+        user_id ? knex('wishlist').whereIn('varient_id', vIds).where('user_id', user_id) : [],
+        user_id ? knex('store_orders').whereIn('varient_id', vIds).where('store_approval', user_id).where('order_cart_id', 'incart') : [],
+        user_id ? knex('product_notify_me').whereIn('varient_id', vIds).where('user_id', user_id) : [],
+        knex('store_products')
+            .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+            .select('store_products.store_id', 'store_products.stock', 'product_varient.varient_id', 'product_varient.description', 'store_products.price', 'store_products.mrp',
+                'product_varient.varient_image', 'product_varient.unit', 'product_varient.quantity', knex.raw('(100-((store_products.price*100)/NULLIF(store_products.mrp, 0)))::double precision as discountper'), 'product_varient.product_id')
+            .where('store_products.store_id', store_id)
+            .whereIn('product_varient.product_id', pIds)
+            .whereNotNull('store_products.price')
+            .where('product_varient.approved', 1)
+            .where('product_varient.is_delete', 0)
+            .modify(qb => {
+                if (bannerVariantIds && bannerVariantIds.size > 0) {
+                    qb.whereIn('product_varient.varient_id', Array.from(bannerVariantIds));
+                }
+            }),
+        knex('product_images').select('product_id', 'type', knex.raw("CONCAT(?::text, image) as image", [baseurl])).whereIn('product_id', pIds).orderBy('type', 'DESC'),
+        knex('product_features').select('product_id', 'tbl_feature_value_master.id', 'tbl_feature_value_master.feature_value')
+            .join('tbl_feature_value_master', 'tbl_feature_value_master.id', '=', 'product_features.feature_value_id')
+            .whereIn('product_id', pIds),
+        knex('feature_categories').where('status', 1).select('id', knex.raw("CONCAT(?::text, image) as image", [baseurl]))
+    ]);
+
+    // Maps for fast lookup
+    const dealMap = new Map(allDeals.map(d => [d.varient_id, d]));
+    const wishlistMap = new Set(allWishlist.map(w => w.varient_id));
+    const cartMap = new Map();
+    allCartItems.forEach(c => {
+        const key = `${c.varient_id}_${c.subscription_flag || 0}`;
+        cartMap.set(key, c);
+    });
+    const notifyMap = new Set(allNotifyMe.map(n => n.varient_id));
+
+    // variantMap: product_id -> Array of variants
+    const variantMap = new Map();
+    allVariants.forEach(v => {
+        if (!variantMap.has(v.product_id)) variantMap.set(v.product_id, []);
+        variantMap.get(v.product_id).push(v);
+    });
+
+    const imageMap = new Map();
+    allImages.forEach(img => {
+        if (!imageMap.has(img.product_id)) imageMap.set(img.product_id, []);
+        imageMap.get(img.product_id).push(img);
+    });
+
+    const featureMap = new Map();
+    allFeatures.forEach(f => {
+        if (!featureMap.has(f.product_id)) featureMap.set(f.product_id, []);
+        featureMap.get(f.product_id).push(f);
+    });
+
+    const featureTagInfoMap = new Map(allFeatureTagsInfo.map(ft => [ft.id, ft]));
+
+    const customizedProductData = productDetail.map(ProductList => {
+        const deal = dealMap.get(ProductList.varient_id);
+        const price = deal ? deal.deal_price : ProductList.price;
+
+        const isFavourite = wishlistMap.has(ProductList.varient_id) ? 'true' : 'false';
+        const regularCartEntry = cartMap.get(`${ProductList.varient_id}_0`);
+        const cartQty = regularCartEntry ? regularCartEntry.qty : 0;
+        const subCartEntry = cartMap.get(`${ProductList.varient_id}_1`);
+        const subcartQty = subCartEntry ? subCartEntry.qty : 0;
+        const notifyMe = notifyMap.has(ProductList.varient_id) ? 'true' : 'false';
+        const isSubscription = subCartEntry ? 'true' : 'false';
+
+        const sub_price = (ProductList.mrp * ProductList.percentage) / 100;
+        const subscription_price = parseFloat((ProductList.mrp - sub_price).toFixed(2));
+        const countryicon = ProductList.country_icon ? baseurl + ProductList.country_icon : null;
+
+        const priceval = Number.isInteger(price) ? price + '.001' : price;
+        const mrpval = Number.isInteger(ProductList.mrp) ? ProductList.mrp + '.001' : ProductList.mrp;
+
+        const feature_tags = (ProductList.fcat_id || '').split(',').map(Number).map(id => featureTagInfoMap.get(id)).filter(Boolean);
+        const features = featureMap.get(ProductList.product_id) || [];
+        const productImages = imageMap.get(ProductList.product_id) || [];
+        const fallbackImage = `${baseurl}${ProductList.product_image}`;
+
+        let total_cart_qty = 0;
+        let total_subcart_qty = 0;
+
+        const variants = (variantMap.get(ProductList.product_id) || [])
+            .filter(v => !bannerVariantIds || bannerVariantIds.size === 0 || bannerVariantIds.has(v.varient_id))
+            .map(v => {
+            const vWishlist = wishlistMap.has(v.varient_id) ? 'true' : 'false';
+            const vNotify = notifyMap.has(v.varient_id) ? 'true' : 'false';
+            const vCart = cartMap.get(`${v.varient_id}_0`);
+            const vSubCart = cartMap.get(`${v.varient_id}_1`);
+            const vCartQty = vCart ? vCart.qty : 0;
+            const vSubCartQty = vSubCart ? vSubCart.qty : 0;
+
+            total_cart_qty += vCartQty;
+            total_subcart_qty += vSubCartQty;
+
+            const vDeal = dealMap.get(v.varient_id);
+            const vPrice = vDeal ? vDeal.deal_price : v.price;
+            return {
+                stock: v.stock,
+                varient_id: v.varient_id,
+                product_id: v.product_id,
+                product_name: ProductList.product_name,
+                product_image: productImages.length > 0 ? productImages[0].image + "?width=200&height=200&quality=100" : fallbackImage + "?width=200&height=200&quality=100",
+                thumbnail: productImages.length > 0 ? productImages[0].image : ProductList.thumbnail,
+                description: v.description,
+                price: vPrice,
+                mrp: v.mrp,
+                unit: v.unit,
+                quantity: v.quantity,
+                type: ProductList.type,
+                discountper: toDoubleNumber(v.discountper),
+                notify_me: vNotify,
+                isFavourite: vWishlist,
+                cart_qty: vCartQty,
+                subcartQty: vSubCartQty,
+                product_feature_id: vCart ? vCart.product_feature_id : 0,
+                country_icon: countryicon,
+            };
+        });
+
+        return {
+            stock: ProductList.stock,
+            cat_id: ProductList.cat_id,
+            varient_id: ProductList.varient_id,
+            product_id: ProductList.product_id,
+            brand_id: ProductList.brand_id,
+            product_name: ProductList.product_name,
+            product_image: fallbackImage + "?width=200&height=200&quality=100",
+            thumbnail: ProductList.thumbnail,
+            description: ProductList.description,
+            price: parseFloat(priceval),
+            mrp: parseFloat(mrpval),
+            unit: ProductList.unit,
+            quantity: ProductList.quantity,
+            type: ProductList.type,
+            percentage: ProductList.percentage,
+            isSubscription: isSubscription,
+            subscription_price: subscription_price,
+            availability: ProductList.availability,
+            discountper: toDoubleNumber(ProductList.discountper),
             avgrating: 0,
             notify_me: notifyMe,
             isFavourite: isFavourite,

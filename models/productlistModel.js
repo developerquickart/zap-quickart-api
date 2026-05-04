@@ -52,7 +52,7 @@ const trailpackimagedata = async (appDetatils) => {
 
 };
 
-const getTopSelling = async (appDetatils) => {
+const getTopSelling2 = async (appDetatils) => {
   // Removed MySQL-specific SQL mode setting - not needed for PostgreSQL
   const { store_id, byname, min_price, max_price, stock, min_discount, max_discount, min_rating, max_rating, sort, sortname, sortprice, cat_id, sub_cat_id, page, perpage } = appDetatils;
   const pageFilter = page; // You can adjust the page number dynamically
@@ -609,6 +609,589 @@ const getTopSelling = async (appDetatils) => {
       subscription_price: subscription_price,
       // discountper: ProductList.discountper,
       discountper: 0,
+      avgrating: 0,
+      notify_me: notifyMe,
+      isFavourite: isFavourite,
+      cart_qty: cartQty,
+      total_cart_qty: total_cart_qty,
+      countrating: 0,
+      country_icon: countryicon,
+      availability: ProductList.availability,
+      feature_tags: feature_tags,
+      features: features,
+      varients: varients,
+      is_customized: ProductList.is_customized,
+      page: pageFilter,
+      perPage: perPage,
+      totalPages: totalPages,
+      total_subcart_qty: total_subcart_qty,
+      // Add or modify properties as needed
+    };
+
+    customizedProductData.push(customizedProduct);
+
+  }
+
+  return customizedProductData;
+};
+const getTopSelling = async (appDetatils) => {
+  // Removed MySQL-specific SQL mode setting - not needed for PostgreSQL
+  const { store_id, byname, min_price, max_price, stock, min_discount, max_discount, min_rating, max_rating, sort, sortname, sortprice, cat_id, sub_cat_id, page, perpage } = appDetatils;
+  const pageFilter = page; // You can adjust the page number dynamically
+  const perPage = perpage;
+  const baseurl = process.env.BUNNY_NET_IMAGE;
+
+  if (appDetatils.user_id != "null") {
+    user_id = appDetatils.user_id
+  } else {
+    user_id = appDetatils.device_id
+  }
+
+  const minprice = parseFloat(min_price)
+  const maxprice = parseFloat(max_price)
+  const mindiscount = parseFloat(min_discount)
+  const maxdiscount = parseFloat(max_discount)
+  const subcatid = sub_cat_id
+
+
+  // let categoryarray;
+  // if (cat_id !== "null") {
+  // categoryarray = await knex('categories').where('parent', cat_id).pluck('cat_id');
+  // }
+
+  // let categoryList = await knex('categories').where('parent', 121).pluck('cat_id');
+  // let categoryList = await knex('categories').where('parent', 1).pluck('cat_id');
+
+  //  const topsellingsQuery = knex('store_products')
+  //  .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+  //  .join('product', 'product_varient.product_id', '=', 'product.product_id')
+  //  .leftJoin('deal_product', 'product_varient.varient_id', '=', 'deal_product.varient_id')
+  //  .leftJoin('tbl_country', 'tbl_country.id', '=', 'product.country_id')
+  //  .select(
+  //    'store_products.stock',
+  //    'product_varient.varient_id',
+  //    'product_varient.description',
+  //    'product.product_id',
+  //    'product.product_name',
+  //    'product.product_image',
+  //    'product.thumbnail',
+  //    'store_products.price',
+  //    'store_products.mrp',
+  //    'product_varient.unit',
+  //    'product_varient.quantity',
+  //    'product.type',
+  //    'product.percentage',
+  //    'product.availability',
+  //    'product.country_id',
+  //    'product.fcat_id',
+  //    'tbl_country.country_icon',
+  //    knex.raw('100-((store_products.price*100)/store_products.mrp) as discountper'),
+  //    knex.raw('100-((deal_product.deal_price*100)/store_products.mrp) as discountper1'),
+  //   )
+  //  .groupBy(
+  //    'store_products.store_id',
+  //    'product_varient.varient_id',
+  //    'product.product_id'
+  //  )
+  //  .where('store_products.store_id', store_id)
+  //  .where('product.hide', 0)
+  //  .where('product.approved', 1)
+  //  .whereIn('product.cat_id', categoryList)
+  //  .where('product.is_delete', 0);
+
+
+  const today = new Date(); // current date
+  const oneYearAgo = new Date();
+  oneYearAgo.setFullYear(today.getFullYear() - 1);
+  const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0]; // Format for PostgreSQL
+
+  // Optimize: Use subquery to pre-filter subscription orders and aggregate quantities first
+  // This reduces the dataset before joining with other tables
+  const productQuantitiesSubquery = knex('subscription_order as sub')
+    .join('store_orders as so', 'sub.store_order_id', 'so.store_order_id')
+    .join('orders as or', 'or.cart_id', 'so.order_cart_id')
+    .select('so.varient_id', knex.raw('SUM(so.qty) as total_quantity'))
+    .whereNotIn('sub.order_status', ['Pause', 'Cancelled'])
+    .where('or.order_date', '>=', oneYearAgoStr)
+    .where('so.store_id', store_id) // Add store_id filter early
+    .groupBy('so.varient_id')
+    .havingRaw('SUM(so.qty) > 0'); // Only products with sales
+
+  const topsellingsQuery = knex('product as p')
+    .join('product_varient as pv', 'pv.product_id', 'p.product_id')
+    .join('store_products as sp', function () {
+      this.on('sp.varient_id', '=', 'pv.varient_id')
+        .andOn('sp.store_id', '=', knex.raw('?', [store_id]));
+    })
+    .join(knex.raw('(?) as pq', [productQuantitiesSubquery]), 'pq.varient_id', 'pv.varient_id')
+    .leftJoin('tbl_country as c', function () {
+      this.on(knex.raw('c.id::text'), '=', knex.raw('p.country_id'));
+    })
+    .join('categories as cat', 'cat.cat_id', 'p.cat_id')
+    .join('brands as brand', 'brand.cat_id', 'p.brand_id')
+    .select(
+      knex.raw('MAX(sp.stock) as stock'),
+      'p.product_image',
+      knex.raw('100-((MAX(sp.price)*100)/MAX(sp.mrp)) as discountper'),
+      knex.raw('100-((MAX(sp.price)*100)/MAX(sp.mrp)) as discountper1'),
+      'p.country_id',
+      'c.country_icon',
+      knex.raw('MAX(pv.unit) as unit'),
+      knex.raw('MAX(pv.varient_id) as varient_id'),
+      knex.raw('MAX(pv.quantity) as quantity'),
+      'p.product_id',
+      'cat.cat_id',
+      'cat.parent',
+      'p.product_name',
+      'p.thumbnail',
+      knex.raw('MAX(sp.price) as price'),
+      knex.raw('MAX(sp.mrp) as mrp'),
+      'p.type',
+      'p.percentage',
+      'p.availability',
+      'pq.total_quantity',
+      knex.raw('MAX(pv.description) as description'),
+      knex.raw('MAX(pv.varient_image) as varient_image'),
+      knex.raw('MAX(pv.ean) as ean'),
+      'p.approved',
+      'p.cat_id',
+      'p.brand_id',
+      'p.hide',
+      'p.added_by',
+      'p.fcat_id',
+      'p.is_customized'
+    )
+    .where('p.is_delete', 0)
+    .where('p.is_zap', true)
+    .where('p.hide', 0)
+    .where('sp.stock', '>', 0)
+    .where('sp.is_deleted', 0)
+    .groupBy(
+      'p.product_image',
+      'p.country_id',
+      'c.country_icon',
+      'p.product_id',
+      'cat.cat_id',
+      'cat.parent',
+      'p.product_name',
+      'p.thumbnail',
+      'p.type',
+      'p.percentage',
+      'p.availability',
+      'p.approved',
+      'p.cat_id',
+      'p.brand_id',
+      'p.hide',
+      'p.added_by',
+      'p.fcat_id',
+      'p.is_customized',
+      'pq.total_quantity'
+    )
+    .where(builder => {
+      builder
+        .where('p.is_offer_product', 0)
+        .whereNull('p.offer_date')
+        .orWhereRaw("p.offer_date::date != CURRENT_DATE")
+    })
+    .orderBy('pq.total_quantity', 'desc');
+
+
+
+  //  if (categoryarray)  {
+  //   topsellingsQuery.whereIn('product.cat_id', categoryarray);
+  //   }
+
+
+  //   if (sub_cat_id !== "null")  {
+  //     topsellingsQuery.where('product.cat_id', subcatid);
+  //   }
+
+
+  if ((minprice === 0 || minprice) && maxprice) {
+    topsellingsQuery.havingRaw('MAX(sp.price) BETWEEN ? AND ?', [minprice, maxprice]);
+  }
+
+  if (mindiscount && maxdiscount) {
+    topsellingsQuery.havingRaw('(discountper BETWEEN ? AND ?) OR (discountper1 BETWEEN ? AND ?)', [
+      mindiscount,
+      maxdiscount,
+      mindiscount,
+      maxdiscount,
+    ]);
+  }
+  if (sortprice === 'ltoh') {
+    topsellingsQuery.orderByRaw('MAX(sp.price) ASC');
+  }
+
+  if (sortprice === 'htol') {
+    topsellingsQuery.orderByRaw('MAX(sp.price) DESC');
+  }
+
+  if (sortname === 'atoz') {
+    topsellingsQuery.orderBy('p.product_name', 'ASC');
+  }
+
+  if (sortname === 'ztoa') {
+    topsellingsQuery.orderBy('p.product_name', 'DESC');
+  }
+
+  // Optimize: Run count and data queries in parallel
+  const totalCountQuery = topsellingsQuery.clone().clearSelect().clearOrder().countDistinct('p.product_id as total');
+  const dataQuery = topsellingsQuery.offset((pageFilter - 1) * perPage).limit(perPage);
+
+  const [totalCountResult, productDetail] = await Promise.all([
+    totalCountQuery.first(),
+    dataQuery
+  ]);
+
+  const totalCount = parseInt(totalCountResult?.total || 0);
+  const totalPages = Math.ceil(totalCount / perPage);
+
+
+  // Pre-fetch all data in batches to avoid N+1 queries - RUN IN PARALLEL for speed
+  const productIds = productDetail.map(p => p.product_id);
+  const varientIds = productDetail.map(p => p.varient_id);
+  const currentDate = new Date();
+
+  // Prepare all batch queries
+  const batchQueries = [];
+
+  // Batch fetch all deals
+  let dealsPromise = Promise.resolve([]);
+  if (varientIds.length > 0) {
+    dealsPromise = knex('deal_product')
+      .whereIn('varient_id', varientIds)
+      .where('store_id', store_id)
+      .where('deal_product.valid_from', '<=', currentDate)
+      .where('deal_product.valid_to', '>', currentDate)
+      .select('varient_id', 'deal_price');
+  }
+
+  // Batch fetch all store products prices
+  let storeProductsPromise = Promise.resolve([]);
+  if (varientIds.length > 0) {
+    storeProductsPromise = knex('store_products')
+      .whereIn('varient_id', varientIds)
+      .where('store_id', store_id)
+      .select('varient_id', 'price');
+  }
+
+  // Batch fetch user-specific data if user_id exists
+  let wishlistsPromise = Promise.resolve([]);
+  let cartItemsPromise = Promise.resolve([]);
+  let subCartItemsPromise = Promise.resolve([]);
+  let subscriptionsPromise = Promise.resolve([]);
+  let notifyMePromise = Promise.resolve([]);
+
+  if (user_id && varientIds.length > 0) {
+    wishlistsPromise = knex('wishlist')
+      .whereIn('varient_id', varientIds)
+      .where('user_id', user_id)
+      .select('varient_id');
+
+    cartItemsPromise = knex('store_orders')
+      .whereIn('varient_id', varientIds)
+      .where('store_approval', user_id)
+      .where('order_cart_id', 'incart')
+      .where('store_id', store_id)
+      .whereNull('subscription_flag')
+      .select('varient_id', 'qty', 'product_feature_id');
+
+    subCartItemsPromise = knex('store_orders')
+      .whereIn('varient_id', varientIds)
+      .where('store_approval', user_id)
+      .where('order_cart_id', 'incart')
+      .where('subscription_flag', 1)
+      .where('store_id', store_id)
+      .select('varient_id', 'qty');
+
+    subscriptionsPromise = knex('store_orders')
+      .whereIn('varient_id', varientIds)
+      .where('store_approval', user_id)
+      .where('subscription_flag', 1)
+      .where('order_cart_id', 'incart')
+      .select('varient_id');
+
+    notifyMePromise = knex('product_notify_me')
+      .whereIn('varient_id', varientIds)
+      .where('user_id', user_id)
+      .select('varient_id');
+  }
+
+  // Batch fetch features for all products
+  let featuresPromise = Promise.resolve([]);
+  if (productIds.length > 0) {
+    featuresPromise = knex('product_features')
+      .select('product_features.product_id', 'tbl_feature_value_master.id', 'tbl_feature_value_master.feature_value')
+      .join('tbl_feature_value_master', 'tbl_feature_value_master.id', '=', 'product_features.feature_value_id')
+      .whereIn('product_id', productIds);
+  }
+
+  // Batch fetch feature categories
+  const fcatIds = new Set();
+  productDetail.forEach(p => {
+    if (p.fcat_id) {
+      p.fcat_id.split(',').forEach(id => {
+        const parsedId = parseInt(id.trim());
+        if (!isNaN(parsedId)) fcatIds.add(parsedId);
+      });
+    }
+  });
+  let featureCatsPromise = Promise.resolve([]);
+  if (fcatIds.size > 0) {
+    featureCatsPromise = knex('feature_categories')
+      .whereIn('id', Array.from(fcatIds))
+      .where('status', 1)
+      .where('is_deleted', 0)
+      .select('id', knex.raw(`('${baseurl}' || COALESCE(image, '')) as image`));
+  }
+
+  // Batch fetch all variants for all products
+  let variantsPromise = Promise.resolve([]);
+  if (productIds.length > 0) {
+    variantsPromise = knex('store_products')
+      .join('product_varient', 'store_products.varient_id', '=', 'product_varient.varient_id')
+      .select('store_products.store_id', 'store_products.stock', 'product_varient.varient_id',
+        'product_varient.description', 'store_products.price', 'store_products.mrp',
+        'product_varient.varient_image', 'product_varient.unit', 'product_varient.quantity',
+        'product_varient.product_id',
+        knex.raw('100-((store_products.price*100)/store_products.mrp) as discountper'))
+      .where('store_products.store_id', store_id)
+      .whereIn('product_varient.product_id', productIds)
+      .whereNotNull('store_products.price')
+      .where('product_varient.approved', 1)
+      .where('product_varient.is_delete', 0);
+  }
+
+  // Batch fetch product images
+  let imagesPromise = Promise.resolve([]);
+  let fallbackImagesPromise = Promise.resolve([]);
+  if (productIds.length > 0) {
+    imagesPromise = knex('product_images')
+      .select('product_id', knex.raw(`('${baseurl}' || COALESCE(image, '')) as image`), 'type')
+      .whereIn('product_id', productIds)
+      .orderBy('type', 'DESC');
+  }
+
+  // Execute ALL batch queries in parallel
+  const [
+    deals,
+    storeProducts,
+    wishlists,
+    cartItems,
+    subCartItems,
+    subscriptions,
+    notifyMeItems,
+    allFeatures,
+    allFeatureCats,
+    allVariants,
+    allImages
+  ] = await Promise.all([
+    dealsPromise,
+    storeProductsPromise,
+    wishlistsPromise,
+    cartItemsPromise,
+    subCartItemsPromise,
+    subscriptionsPromise,
+    notifyMePromise,
+    featuresPromise,
+    featureCatsPromise,
+    variantsPromise,
+    imagesPromise
+  ]);
+
+  // Build maps from results
+  const dealsMap = {};
+  deals.forEach(deal => dealsMap[deal.varient_id] = deal.deal_price);
+
+  const storeProductsMap = {};
+  storeProducts.forEach(sp => storeProductsMap[sp.varient_id] = sp.price);
+
+  const wishlistMap = {};
+  wishlists.forEach(w => wishlistMap[w.varient_id] = true);
+
+  const cartQtyMap = {};
+  const cartFeatureMap = {};
+  cartItems.forEach(c => {
+    cartQtyMap[c.varient_id] = c.qty;
+    if (c.product_feature_id) cartFeatureMap[c.varient_id] = c.product_feature_id;
+  });
+
+  const subcartQtyMap = {};
+  subCartItems.forEach(sc => subcartQtyMap[sc.varient_id] = sc.qty);
+
+  const subscriptionMap = {};
+  subscriptions.forEach(s => subscriptionMap[s.varient_id] = true);
+
+  const notifyMeMap = {};
+  notifyMeItems.forEach(n => notifyMeMap[n.varient_id] = true);
+
+  const featuresMap = {};
+  allFeatures.forEach(f => {
+    if (!featuresMap[f.product_id]) featuresMap[f.product_id] = [];
+    featuresMap[f.product_id].push({ id: f.id, feature_value: f.feature_value });
+  });
+
+  const featureCategoriesMap = {};
+  allFeatureCats.forEach(fc => featureCategoriesMap[fc.id] = fc);
+
+  const variantsMap = {};
+  allVariants.forEach(v => {
+    if (!variantsMap[v.product_id]) variantsMap[v.product_id] = [];
+    variantsMap[v.product_id].push(v);
+  });
+
+  const imagesMap = {};
+  allImages.forEach(img => {
+    if (!imagesMap[img.product_id]) imagesMap[img.product_id] = [];
+    imagesMap[img.product_id].push(img);
+  });
+
+  // Fallback to product_image if no product_images - only fetch if needed
+  const productsWithoutImages = productIds.filter(id => !imagesMap[id] || imagesMap[id].length === 0);
+  if (productsWithoutImages.length > 0) {
+    const fallbackImages = await knex('product')
+      .select('product_id', knex.raw(`('${baseurl}' || COALESCE(product_image, '')) as image`))
+      .whereIn('product_id', productsWithoutImages);
+    fallbackImages.forEach(img => {
+      if (!imagesMap[img.product_id]) imagesMap[img.product_id] = [];
+      imagesMap[img.product_id].push(img);
+    });
+  }
+
+  const customizedProductData = [];
+  for (let i = 0; i < productDetail.length; i++) {
+    const ProductList = productDetail[i];
+
+    // Get price from deals or store products (already fetched)
+    let price = dealsMap[ProductList.varient_id] || storeProductsMap[ProductList.varient_id] || 0;
+
+
+    // Use pre-fetched data instead of queries
+    let isSubscription = 'false';
+    let isFavourite = 'false';
+    let notifyMe = 'false';
+    let cartQty = 0;
+
+    if (user_id) {
+      isSubscription = subscriptionMap[ProductList.varient_id] ? 'true' : 'false';
+      isFavourite = wishlistMap[ProductList.varient_id] ? 'true' : 'false';
+      cartQty = cartQtyMap[ProductList.varient_id] || 0;
+      notifyMe = notifyMeMap[ProductList.varient_id] ? 'true' : 'false';
+    }
+
+    const baseurl = process.env.BUNNY_NET_IMAGE;
+
+
+    const sub_price = (ProductList.mrp * ProductList.percentage) / 100;
+    const finalsubprice = ProductList.mrp - sub_price;
+    const subscription_price = parseFloat(finalsubprice.toFixed(2));
+    if (ProductList.country_icon == null) {
+      countryicon = null
+    } else {
+      countryicon = baseurl + ProductList.country_icon
+    }
+
+    if (Number.isInteger(price)) {
+      priceval = price + '.001'
+    } else {
+      priceval = price
+    }
+    if (Number.isInteger(ProductList.mrp)) {
+      mrpval = ProductList.mrp + '.001'
+    } else {
+      mrpval = ProductList.mrp
+    }
+
+    // Use pre-fetched feature categories
+    let feature_tags = [];
+    if (ProductList.fcat_id != null) {
+      const resultArray = ProductList.fcat_id.split(',').map(Number);
+      feature_tags = resultArray.map(id => featureCategoriesMap[id]).filter(Boolean);
+    }
+
+    // Use pre-fetched features
+    const features = featuresMap[ProductList.product_id] || [];
+
+    // Use pre-fetched variants
+    const app = variantsMap[ProductList.product_id] || [];
+
+    // Use pre-fetched data for variants
+    const customizedVarientData = [];
+    let total_cart_qty = 0;
+    let total_subcart_qty = 0;
+
+    for (let j = 0; j < app.length; j++) {
+      const ProductList1 = app[j];
+      // Use pre-fetched price
+      const vprice = dealsMap[ProductList1.varient_id] || storeProductsMap[ProductList1.varient_id] || ProductList1.price;
+
+      // Use pre-fetched user data
+      let isFavourite1 = 'false';
+      let notifyMe1 = 'false';
+      let cartQty1 = 0;
+      let subcartQty = 0;
+      let productFeatureId = 0;
+
+      if (user_id) {
+        isFavourite1 = wishlistMap[ProductList1.varient_id] ? 'true' : 'false';
+        cartQty1 = cartQtyMap[ProductList1.varient_id] || 0;
+        subcartQty = subcartQtyMap[ProductList1.varient_id] || 0;
+        notifyMe1 = notifyMeMap[ProductList1.varient_id] ? 'true' : 'false';
+        productFeatureId = cartFeatureMap[ProductList1.varient_id] || 0;
+
+        total_cart_qty += cartQty1;
+        total_subcart_qty += subcartQty;
+      }
+
+      // Use pre-fetched images
+      const images = imagesMap[ProductList.product_id] || [];
+
+      const customizedVarient = {
+        stock: ProductList1.stock,
+        varient_id: ProductList1.varient_id,
+        product_id: ProductList1.product_id,
+        product_name: ProductList.product_name,
+        product_image: images.length > 0 ? images[0].image + "?width=200&height=200&quality=100" : '',
+        thumbnail: images.length > 0 ? images[0].image : '',
+        description: ProductList1.description,
+        price: vprice,
+        mrp: ProductList1.mrp,
+        unit: ProductList1.unit,
+        quantity: ProductList1.quantity,
+        type: ProductList.type,
+        discountper: parseFloat(ProductList1.discountper) || 0,
+        notify_me: notifyMe1,
+        isFavourite: isFavourite1,
+        cart_qty: cartQty1,
+        total_cart_qty: cartQty1,
+        subcartQty: subcartQty,
+        total_subcart_qty: subcartQty,
+        product_feature_id: productFeatureId,
+        country_icon: ProductList.country_icon ? baseurl + ProductList.country_icon : null,
+      };
+
+      customizedVarientData.push(customizedVarient);
+    }
+    const varients = customizedVarientData;
+
+    const customizedProduct = {
+      stock: ProductList.stock,
+      varient_id: ProductList.varient_id,
+      product_id: ProductList.product_id,
+      product_name: ProductList.product_name,
+      product_image: baseurl + ProductList.product_image,
+      thumbnail: baseurl + ProductList.thumbnail,
+      description: ProductList.description,
+      price: parseFloat(priceval),
+      mrp: parseFloat(mrpval),
+      unit: ProductList.unit,
+      quantity: ProductList.quantity,
+      type: ProductList.type,
+      percentage: ProductList.percentage,
+      isSubscription: isSubscription,
+      subscription_price: subscription_price,
+      discountper: parseFloat(ProductList.discountper) || 0,
       avgrating: 0,
       notify_me: notifyMe,
       isFavourite: isFavourite,
